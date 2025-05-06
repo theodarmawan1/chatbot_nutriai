@@ -5,7 +5,7 @@ from PIL import Image, ImageTk
 import time
 import os
 import cProfile, random
-from generate_response import generate_response
+from generate_response import generate_meal_plan, welcome_message
 
 root = ct.CTk()
 root.title("ChatRoom")
@@ -24,7 +24,7 @@ else:
         pass
 
 with open(file_path, "w") as img_src:
-    image_list = ["images\\avator.png", "images\\avator1.png", "images\\avator2.png"]
+    image_list = ["AI\\images\\avator.png", "AI\\images\\avator1.png", "AI\\images\\avator2.png"]
     my_image = random.choice(image_list)
     print(my_image)
     img_src.write(f"{my_image}")
@@ -38,13 +38,13 @@ class ChatApp:
         self.optionFram = Frame(root, bg="black")
         # All imagas for chatfram code
 
-        manIconSrc2 = Image.open("images\\robot.png")
+        manIconSrc2 = Image.open("AI\\images\\robot.png")
         manIconImage2 = ImageTk.PhotoImage(manIconSrc2.resize((40, 40)))
-        submitIconSrc = Image.open("images\\send2.png")
+        submitIconSrc = Image.open("AI\\images\\send2.png")
         submitIconImage = ImageTk.PhotoImage(submitIconSrc.resize((40, 40)))
-        messageIconSrc = Image.open("images\\message.png")
+        messageIconSrc = Image.open("AI\\images\\message.png")
         messageIconImage = ImageTk.PhotoImage(messageIconSrc.resize((40, 40)))
-        chatIconSrc = Image.open("images\\chat.png")
+        chatIconSrc = Image.open("AI\\images\\chat.png")
         chatIconImage = ImageTk.PhotoImage(chatIconSrc.resize((35, 35)))
 
         # All imagas for chatfram code ends here
@@ -94,8 +94,34 @@ class ChatApp:
         self.submitBtn.configure(command=self.sendMessage)
 
         self.chatFram.pack(side=BOTTOM, fill=X, ipady=5)
+        self.display_welcome_message()
 
         self.root.bind("<Return>", lambda event: self.sendMessage())
+
+    def display_welcome_message(self):
+        bot_image_src = Image.open("AI\\images\\robot.png")
+        bot_image = ImageTk.PhotoImage(bot_image_src.resize((40, 40)))
+
+        current_time = time.strftime("%H:%M")
+        current_time_label = ct.CTkLabel(self.label_frame, text=current_time, font=("consolas", 12))
+        current_time_label.pack(side=TOP, anchor="nw", pady=0, padx=55)
+
+        bot_frame = ct.CTkFrame(self.label_frame, fg_color="black")
+        bot_frame.pack(side=TOP, anchor="nw", padx=10)
+
+        bot_response_label = ct.CTkLabel(
+            bot_frame,
+            text=welcome_message,
+            font=("Poppins", 14),
+            fg_color="#444",
+            corner_radius=6,
+            wraplength=300
+        )
+        bot_response_label.pack(side=RIGHT, pady=5, padx=5)
+
+        bot_image_label = ct.CTkLabel(bot_frame, text="", image=bot_image, fg_color="black")
+        bot_image_label.image = bot_image
+        bot_image_label.pack(side=TOP, pady=13)
 
     def sendMessage(self):
         with open(file_path, "r") as f:
@@ -106,7 +132,7 @@ class ChatApp:
         self.msgInput.delete(0, END)
         user_image_src = Image.open(self.imagename)
         user_image = ImageTk.PhotoImage(user_image_src.resize((40, 40)))        
-        bot_image_src = Image.open("images\\robot.png")
+        bot_image_src = Image.open("AI\\images\\robot.png")
         bot_image = ImageTk.PhotoImage(bot_image_src.resize((40, 40)))
         if self.message != "":
             self.current_time = time.strftime("%H:%M")
@@ -124,20 +150,32 @@ class ChatApp:
             self.canvas.update_idletasks()
             self.canvas.yview_moveto(1.0)
             try:
-                self.to_respond = generate_response(self.message)
+                self.to_respond = generate_meal_plan(self.message)
                 if self.to_respond:
                     self.current_time = time.strftime("%H:%M")
                     self.current_time_label = ct.CTkLabel(self.label_frame, text=self.current_time, font=("consolas", 12))
                     self.current_time_label.pack(side=TOP, anchor="nw", pady=0, padx=55)
+                    
                     self.bot_frame = ct.CTkFrame(self.label_frame, fg_color="black")
                     self.bot_frame.pack(side=TOP, anchor="nw", padx=10)
-                    self.bot_response_label = ct.CTkLabel(self.bot_frame, text=self.to_respond, font=("Poppins", 14), 
-                                        fg_color="#444", corner_radius=6, wraplength=300)
-                    self.bot_response_label.pack(side=RIGHT, anchor="ne", padx=10, pady=1, ipady=8, ipadx=10)
+                    
+                    self.bot_response_label = ct.CTkLabel(
+                        self.bot_frame,
+                        text=self.to_respond,
+                        font=("Poppins", 14),
+                        fg_color="#444",
+                        corner_radius=6,
+                        wraplength=300
+                    )
+                    self.bot_response_label.pack(side=RIGHT, pady=5, padx=5)
+
                     self.bot_image_label = ct.CTkLabel(self.bot_frame, text="", image=bot_image, fg_color="black")
-                    self.bot_image_label.pack(side=TOP, pady=13)
-                    self.canvas.update_idletasks()
+                    self.bot_image_label.image = bot_image  # Mencegah gambar hilang
+                    self.bot_image_label.pack(side=LEFT, pady=5, padx=5)
+
+                    self.root.update_idletasks()
                     self.canvas.yview_moveto(1.0)
+
 
                 if self.msgInput.get() :
                     print("Working")

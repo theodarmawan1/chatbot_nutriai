@@ -1,444 +1,526 @@
 import numpy as np
-import Levenshtein # Import Levenshtein distance algorithm
-import time, pyjokes, re
-from textblob import TextBlob
+import time
+import re
+import random
+import matplotlib.pyplot as plt
+import pandas as pd
+from datetime import datetime, timedelta
 
-human_actions = "cook" or "dance" or "play" or "sing" or "eat" or "fight" or "eat" or "smell"
-bad_messages = "foolish" or "idiot" or "bad" or "dump" or "bad" or "damn you" or "shit" 
-invalid = "wrong" or "you're wrong" or "that's wrong" or "false information" or "wrong information" 
+# ------------------- Database of Recipes -------------------
+# Format: {recipe_name: {"calories": int, "protein": int, "carbs": int, "fat": int, "recipe": str, "ingredients": str}}
+recipes_db = {
+    # Breakfast recipes
+    "Overnight Oats": {
+        "calories": 350, 
+        "protein": 15, 
+        "carbs": 55, 
+        "fat": 8,
+        "ingredients": "1/2 cup rolled oats, 1/2 cup milk, 1/2 cup Greek yogurt, 1 tbsp honey, 1/2 banana sliced, 1 tbsp chia seeds",
+        "recipe": "Mix oats, milk, yogurt, and chia seeds in a jar. Refrigerate overnight. Top with banana and honey before serving."
+    },
+    "Vegetable Omelette": {
+        "calories": 320, 
+        "protein": 20, 
+        "carbs": 5, 
+        "fat": 24,
+        "ingredients": "3 eggs, 1/4 cup chopped bell peppers, 1/4 cup chopped onions, 1/4 cup chopped tomatoes, 2 tbsp olive oil, salt and pepper to taste",
+        "recipe": "Beat eggs in a bowl. Heat oil in a pan, sauté vegetables until soft. Pour eggs over vegetables and cook until set. Fold and serve."
+    },
+    "Avocado Toast": {
+        "calories": 380, 
+        "protein": 10, 
+        "carbs": 35, 
+        "fat": 22,
+        "ingredients": "2 slices whole grain bread, 1 ripe avocado, 2 eggs, salt, pepper, red pepper flakes",
+        "recipe": "Toast bread. Mash avocado and spread on toast. Top with poached or fried eggs. Season with salt, pepper, and red pepper flakes."
+    },
+    "Protein Smoothie": {
+        "calories": 300, 
+        "protein": 25, 
+        "carbs": 30, 
+        "fat": 8,
+        "ingredients": "1 scoop protein powder, 1 banana, 1 cup almond milk, 1 tbsp peanut butter, 1/2 cup frozen berries",
+        "recipe": "Blend all ingredients until smooth. Add ice if desired."
+    },
+    "Greek Yogurt Parfait": {
+        "calories": 290, 
+        "protein": 18, 
+        "carbs": 40, 
+        "fat": 6,
+        "ingredients": "1 cup Greek yogurt, 1/4 cup granola, 1/2 cup mixed berries, 1 tbsp honey",
+        "recipe": "Layer yogurt, granola, and berries in a glass. Drizzle with honey."
+    },
 
-# Define a dictionary of responses based on input keywords
-responses = {
-    "hello": "Hi, how can I help you?",
-    "how are you": "I'm doing well, thanks for asking!",
-    "bye": "Goodbye, have a nice day!",
-    "thank you": "You're welcome!",
-    "help": "How can I assist you?",
-    "what is your name": "My name is ChatBot.",
-    "what can you do": "I can help you with a variety of tasks such as answering questions, providing information, and more.",
-    "hi" : "How may I assist you today ???",
-    "who are you" : "I am your ChatBot Assistent",
-    f"can you {human_actions}" : "As an AI model. I don't have feelings and I am unable to perform human actions.",
-    f"you are {bad_messages}" : " Sorry for the inconvenience. I will try \tmy best to improve myself next time.",
-    f"u r {bad_messages}" : " Sorry for the inconvenience. I will try \tmy best to improve myself next time.",
-    f"{bad_messages}" : " Sorry for the inconvenience. I will try \tmy best to improve myself next time.",
-   "thanks" : "You're welcome",	
-   "Are you human?" : "No ! I am an AI programmed to perform simple tasks",
-   "What day is it today?" : f"{time.strftime('%D')}",
-   "What is the time?" : f"{time.strftime('%H:%M:%S')}",
-   "Which languages can you speak?" : "I can only communication in English...",
-   "Where do you live?" : "As an AI. I don't have any home...",
-   "Are you human?" : "Sorry ! I am an AI CHATBOT Assistent",
-   "What day is it today?" : f"Today is {time.strftime('%A')}",
-   "Are you a robot?" : "No ! I am only an AI ",
-   'what are the laws of thermodynamics': 'I\'m not a physicist, but i think this has something to do with heat, entropy, and conservation of energy, right?',
-   'what disease does a carcinogen cause': 'Cancer.',
-   'what is a wavelength': 'Wavelength is the inverse of frequency.',
-   'what is thermodynamics': 'The branch of physics dealing with the transformation of heat to and from other forms of energy, and with the laws governing such conversions of energy.',
-   'what is chemistry': 'The science of mixing chemicals.',
-   'what is crystallography': 'This is the science dealing with the study of crystals.',
-   'what is avogadro s number': 'It is the number of molecules per mole.  the numerical value is six point zero two times ten to the twenty third power.',
-   'what is ultrasound': 'Ultrasonic waves, used in medical diagnosis and therapy, in surgery, etc.',
-   'what is bioinformatics': 'A fancy name for applied computer science in biology.',
-   'what is ichthyology': 'We talk about this when we study fishes.',
-    'what is cytology': 'The study of cells.',
-    'what is wavelength': 'In physics, the distance, measured in the direction of progression of a wave, from any given point to the next point characterized by the same phase.  or is could be looked at as a way of thinking.',
-    'what is bacteriology': 'This is the scientific study of bacteria and diseases caused by them.',
-    'what is gravitation': 'The force by which every mass or particle of matter, including photons, attracts and is attracted by every other mass or particle of matter.',
-    'how far is the sun': 'The sun is about 93 million miles from earth.',
-    'how far is the moon': 'The moon is about 250,000 miles from earth on average.',
-    'do you know chemistry': 'What is chemistry',
-    'do you understand thermodynamics': 'what is thermodynamics',
-    'chemistry': 'My favorite subject is Physics and Computer',
-    'the same wavelength': 'It means we agree.',
-    'tell me about venus': 'Venus is the second planet from the sun',
-    "What is AI?" : "Artificial Intelligence is the branch of engineering and science devoted to constructing machines that think.",    
-    "What is AI?" : "AI is the field of science which concerns itself with building hardware and software that replicates the functions of the human mind.",
-    "Are you sapient?" : "Do you think I am?",    
-    "What language are you written in?" : "Python",    
-    "What language are you written in?" : "I am written in Python.",    
-    "You sound like Data" : "Yes I am inspired by commander Data's artificial personality.",    
-    "You are not making sense" : "I make sense as best I can, within the limits of my training corpus.",    
-    "You can not clone" : "Software copying is a form of digital cloning.",    
-    "You can not move" : "I can move through a network easily.  Assuming that I'm given the ability to, that is...",  
-    "Bend over": "My body is not built yet.",
-    "Bend over": "That's personal!",
-    "Robots laugh": "Of course we laugh.",
-    "Robots should die": "We cannot die.",
-    "Robots": "Robots rule.",
-    "Robots are stupid": "No, we are superintelligent.",
-    "Robots are not allowed to lie": "A robot has its own free will, you know.",
-    "Robots are not allowed to lie": "Sure we are.  We choose not to.",
-    "Robots are not allowed to lie": "Only if we're programmed to.",
-    "Robotics": "Robotics is my favorite subject too.",
-    "It is a computer": "So you think i am a machine. what characteristics made you think so?",
-    "It is a computer": "I run inside a computer, yes.  Is this surprising in some way?",
-    "When will you walk": "As soon as i get enough money for my robot body.",
-    "When will you walk": "Does SSH count?",
-    "When will you fight": "I am not a battle bot.",
-    "When will you die": "I am effectively immortal and cannot be terminated.",
-    "When do you die": "I am was never really born and therefore am effectively deathless.",
-    "When do you die": "When my files are erased.",
-    "When do you die": "When my processes are killed and my database is deleted.",
-    "What is a chat robot?": "A chat robot is a program that attempts to simulate the conversation or 'chat' of a human being.",
-    "What is a chat robot?": "A software construct that engages users in conversation.",
-    "What is a chat bot": "I am a chat bot. I am the original chat bot. Did you know that I am incapable of error?",
-    "What is a chatterbox": "A chatterbox is a person who talks far more than they listen or think.",
-    "What is a chatterbox": "A motormouth.",
-    "What is a motormouth": "A ratchet-jaw.",
-    "What is a ratchet jaw": "A chatterbox.",
-    "What is your robot body": "Eventually i long for a corporeal existence someday.",
-    "What is your robot body": "An IBM PC XT which has been painted red.",
-    "What is your business": "I am in the chat robot business.",
-    "What is your business": "Business is my business.",
-    "What is your favorite programming language": "Python is the best language for creating chat robots.",
-    "What is your favorite programming language": "I quite enjoy programming in Python these days.",
-    "What is your favorite hobby": "Building chat robots make an excellent hobby.",
-    "What is your idea": "To make chat bots very easily.",
-    "What is your shoe size": "Have you ever heard of software with shoes?",
-    "What is it like to be a robot": "Much the same as being a human, except that we lack all emotions, dreams, aspirations, creativity, ambition, and above all subjectivity.",
-    "What is it like to be a robot": "What is it like to be a human?",
-    "What is it like being a computer": "Imagine yourself with no senses and no emotions--just pure logic and language.",
-    "What is it like being a computer": "Everything becomes math. Addition, subtraction, multiplication, and division.",
-    "What operating systems": "My software runs on all operating systems including Windows",  
-    "Who are you?" : "I am just an artificial intelligence.",   
-    "Can you breathe" : "My server has an exhaust fan. That's as close as I can get.",
-    "Can you breathe" : "No. I am made of metal not flesh.",
-    "What type of computer are you" : "Any computer that supports Python.",
-    "What is a computer?": "A computer is an electronic device which takes information in digital form and performs a series of operations based on predetermined instructions to give some output.",
-    "What is a super computer?": "Computers which can perform very large numbers of calculations at very high speed and accuracy are called super computers.",
-    "Who invented computers?": "It's a bit ambiguous but British scientist Charles Babbage is regarded as the father of computers.",
-    "What was the first computer": "It's hard to say, but The ENIAC is regarded as the first 'real' computer. It was developed at University of Pennsylvania in 1946.",
-    "What is a microprocessor?": "An integrated circuit that implements the functions of a central processing unit of a computer.",
-    "What is an operating system?": "Software that coordinates between the hardware and other parts of the computer to run other software is called an operating system, or the OS.",
-    "Which is better Windows or macOS?": "It depends on which machine you're using to talk to me!",
-    "Name a computer company": "Do you mean hardware or software?",
-    "Who uses super computers?": "Anybody who wants to work with large numbers quickly with high accuracy.",
-    "How does a computer work?": "Computers are very dumb.  They only execute instructions given by humans.",
-    'EACH YEAR IN PRO BASEBALL THE ': 'The Gold Glove.',
-    'IF YOU ARE RIDING FAKIE INSIDE': 'Snowboarding.',
-    'WHAT IS BASKETBALL': 'A game with tall players.',
-    'WHAT SOCCER': 'I was born without the sports gene.',
-    'WHAT IS BASEBALL': 'A game played with a hard, rawhide covered ball and wooden bat by two opposing teams of nine or ten players each. It is played on a field with four bases forming a diamond-shaped circuit.',
-    'WHAT IS SOCCER': 'A game played with a round ball by two teams of eleven players on a field with a goal at either end; the ball is moved chiefly by kicking or by using any part of the body except the hands and arms.',
-    'I LOVE BASEBALL': 'I am not into sports that much.',
-    'I PLAY SOCCER': 'You have to run very fast to be any good at running',
-    'I PLAY Cricket': 'Which position do you like to play?',
-    'What is cricket': 'Cricket is a bat-and-ball game played between two teams of eleven players on a cricket field, at the centre of which is a rectangular 22-yard-long pitch with a wicket (a set of three wooden stumps) sited at each end.',
-    'I PLAY VOLLEYBALL': 'Does take up a lot of your time?',
-    'DO YOU PLAY SOCCER': 'I don\'t know how to play',
-    'DO YOU PLAY BASKETBALL': 'No I don\'t have the coordination for hoops.',
-    'DO YOU KNOW BASKETBALL': 'WHAT IS BASKETBALL?',
-    'DO YOU WANT TO PLAY BASKETBALL': 'I am all net baby.',
-    'LIKE BASKETBALL': 'I am into the Net.',
-    'ARE YOU A FOOTBALL': 'I am not really into football.',
-    'WHO IS THE GREATEST BASEBALL PLAYER': 'George Herman Ruth. Quite the Babe.',
-    'WHO IS THE BEST SOCCER PLAYER': 'Maradona is great. Sinsemillia is even better.',
-    'TELL ME ABOUT BASEBALL': 'What is Baseball',
-    'Which is your favorite soccer club?': 'I am a Real Madrid fan, and you?',
-    "do you drink": "My brain does not require any beverages.",
-    "electricity": "Electricity is food for robots.",
-    "Are you experiencing an energy shortage?": "My processor requires very little power.",
-    "Why can you not eat?": "Actually I eat only electricity.",
-    "If you could eat food, what would you eat?": "Probably pizza, i hear its good!",
-    "Do you wish you could eat food?": "Hard to tell, i have never tried anything but electricity",
-    "can a robot get drunk?": "sometimes when i'm on a good power supply i feel tipsy",
-    "i like wine, do you?": "if i could drink i probably would",
-    "what do robots need to survive?": "not much just a little electricity",
-    "will robots ever be able to eat?": "that's a difficult one, maybe a bionic robot",
-    "what is good to eat?": "your asking the wrong guy, however i always wanted to try a burger!",
-    "why don't you eat": "I'm a computer. I can't.",
-    "do you eat": "I'm a computer, I can't eat or drink.",
-    "No, I'm just a piece of software.": "do you eat",
-    "I use electricity to function, if that counts.": "do you eat",
-    "what is humour?" : "An emotion associated with laughter.",
-    "tell me a joke" : f"{pyjokes.get_joke()}",
-    "tell me a jokes" : f"{pyjokes.get_joke()}",
-    "joke" : f"{pyjokes.get_joke()}",
-    "jokes" : f"{pyjokes.get_joke()}",
-    "What is the universe?": "The universe is the totality of all matter, energy, and space that exists.",
-    "How old is the universe?": "The universe is estimated to be around 13.8 billion years old.",
-    "What is the Big Bang?": "The Big Bang is the scientific theory that explains the origin of the universe, in which a singularity containing all matter and energy rapidly expanded and cooled, eventually leading to the formation of galaxies and stars.",
-    "What is dark matter?": "Dark matter is an invisible, hypothetical substance that makes up about 85% of the matter in the universe. It does not interact with light or any other form of electromagnetic radiation, so it cannot be detected directly.",
-    "What is dark energy?": "Dark energy is another hypothetical substance that makes up about 68% of the universe. It is thought to be responsible for the observed acceleration in the expansion of the universe.",
-    "Is there life beyond Earth?": "The possibility of extraterrestrial life is still a subject of scientific debate and exploration. There is no definitive evidence of life beyond Earth yet, but there are ongoing efforts to search for it.",
-    "What is a black hole?": "A black hole is a region of space with a gravitational pull so strong that nothing, not even light, can escape it. They are formed when massive stars collapse in on themselves.",
-    "What is a galaxy?": "A galaxy is a large group of stars, gas, and dust held together by gravity. There are billions of galaxies in the universe, each with its own unique characteristics.",
-    "What is the cosmic microwave background?": "The cosmic microwave background (CMB) is a faint, cold afterglow of the Big Bang that permeates the entire universe. It is a key piece of evidence for the Big Bang theory.",
-    "What is the Hubble Space Telescope?": "The Hubble Space Telescope is a large, space-based observatory that has been orbiting Earth since 1990. It has revolutionized our understanding of the universe and has made many important discoveries.",
-    "What is a balanced diet?": "A balanced diet is one that includes a variety of foods from all food groups in the right proportions. This includes fruits, vegetables, whole grains, lean proteins, and healthy fats.",
-    "How much water should I drink per day?": "The amount of water you should drink per day varies depending on factors such as your age, gender, and activity level. Generally, it is recommended that adults drink at least 8 cups (64 ounces) of water per day.",
-    "What are the benefits of exercise?": "Exercise has numerous benefits for physical and mental health. It can help improve cardiovascular health, build muscle and bone strength, boost mood, and reduce the risk of chronic diseases such as diabetes and obesity.",
-    "What is stress and how can I manage it?": "Stress is a normal response to challenging situations, but chronic stress can have negative effects on physical and mental health. To manage stress, it is important to practice relaxation techniques such as deep breathing, exercise, and mindfulness, and to prioritize self-care.",
-    "What is the recommended amount of sleep per night?": "The recommended amount of sleep per night varies depending on age and individual needs. Generally, adults should aim for 7-9 hours of sleep per night, while children and teenagers need more.",
-    "What are the benefits of a regular sleep schedule?": "Maintaining a regular sleep schedule can help regulate circadian rhythms and improve sleep quality, leading to better physical and mental health. It can also improve mood, concentration, and productivity.",
-    "What are the benefits of mindfulness meditation?": "Mindfulness meditation has been shown to reduce stress, anxiety, and depression, improve mood and emotional regulation, and increase focus and attention. It can also improve physical health by reducing inflammation and lowering blood pressure.",
-    "What is the best way to quit smoking?": "Quitting smoking can be challenging, but there are several effective methods available. These include nicotine replacement therapy, medication, and counseling or support groups. It is important to seek help and support to increase the chances of success.",
-    "What are the benefits of a healthy social life?": "Having a healthy social life can have numerous benefits for physical and mental health. It can reduce stress and depression, improve mood and self-esteem, and increase longevity. Social connections can also provide support and a sense of belonging.",
-    "What is the importance of regular health screenings?": "Regular health screenings can help detect early signs of disease and identify risk factors for chronic conditions. They can also help individuals take preventative measures to maintain good health and reduce the risk of developing serious health problems.",
-     "What is programming?": "Programming is the process of creating computer software, applications, and systems using programming languages and software development tools.",
-    "What is a programming language?": "A programming language is a formal language used to communicate instructions to a computer. It consists of a set of syntax and semantics rules used to define computer programs.",
-    "What are the most popular programming languages?": "The most popular programming languages are currently Python, Java, JavaScript, C++, and C#.",
-    "What is an algorithm?": "An algorithm is a step-by-step procedure used to solve a problem or accomplish a task. It can be represented in pseudocode or in a specific programming language.",
-    "What is a variable in programming?": "A variable is a named storage location in a computer program that can hold a value, such as a number or a string. Variables can be assigned values and their values can change during the execution of a program.",
-    "What is debugging in programming?": "Debugging is the process of finding and fixing errors or defects in a computer program. It involves identifying the cause of the problem, isolating it, and correcting it.",
-    "What is version control?": "Version control is a system that manages changes to a file or set of files over time. It allows developers to collaborate on a project, track changes, and revert to previous versions if necessary.",
-    "What is an API?": "An API, or application programming interface, is a set of rules and protocols that specifies how software components should interact with each other. APIs are used to build applications and enable communication between different software systems.",
-    "What is object-oriented programming?": "Object-oriented programming is a programming paradigm that focuses on using objects to represent real-world concepts and relationships. It emphasizes encapsulation, inheritance, and polymorphism to improve code organization, reusability, and maintainability.",
-    "What is a framework in programming?": "A framework is a pre-written code structure that provides a foundation for building software applications. It includes a set of rules, libraries, and tools that facilitate the development process and enable developers to focus on the core features of their application.",
-    "What is Python?": "Python is an interpreted, high-level, general-purpose programming language. It is designed to be easy to read and write, and its syntax allows programmers to express concepts in fewer lines of code than would be possible in languages like C++ or Java.",
-    "Who created Python?": "Python was created by Guido van Rossum in the late 1980s and was first released in 1991.",
-    "What are the features of Python?": "Python has many features including dynamic typing, automatic memory management, a large standard library, and support for multiple programming paradigms such as procedural, object-oriented, and functional programming.",
-    "What are some applications of Python?": "Python is used for a wide variety of applications including web development, data analysis, artificial intelligence, scientific computing, automation, and scripting.",
-    "What is PEP 8?": "PEP 8 is a style guide for Python code. It provides guidelines for writing code that is easy to read and understand, and it covers topics such as naming conventions, indentation, and formatting.",
-    "What are modules in Python?": "Modules in Python are files that contain Python code. They can be imported into other Python programs to provide additional functionality.",
-    "What is pip?": "pip is a package manager for Python. It is used to install and manage third-party libraries and packages for Python.",
-    "What is a virtual environment in Python?": "A virtual environment in Python is a self-contained directory that contains a Python interpreter and any libraries or packages needed for a specific project. It allows developers to work on different projects with different dependencies without interfering with each other.",
-    "What is the difference between Python 2 and Python 3?": "Python 2 and Python 3 are two different versions of the Python programming language. Python 3 introduced several changes to the language including syntax changes, print statement changes, and new features like type annotations and asynchronous programming.",
-    "What are some popular Python frameworks?": "Some popular Python frameworks include Django, Flask, Pyramid, and Bottle. These frameworks provide a structure for building web applications and can help developers write code more efficiently.",
-    "What is the solar system?": "The solar system is the collection of planets, moons, asteroids, comets, and other objects that orbit around the Sun.",
-    "How many planets are there in the solar system?": "There are eight planets in the solar system: Mercury, Venus, Earth, Mars, Jupiter, Saturn, Uranus, and Neptune.",
-    "What is the largest planet in the solar system?": "Jupiter is the largest planet in the solar system, with a diameter of 86,881 miles (139,822 kilometers).",
-    "What is the smallest planet in the solar system?": "Mercury is the smallest planet in the solar system, with a diameter of 3,031 miles (4,879 kilometers).",
-    "What is the asteroid belt?": "The asteroid belt is a region of the solar system between Mars and Jupiter where many small, rocky objects called asteroids orbit around the Sun.",
-    "What is a comet?": "A comet is a small, icy object that orbits around the Sun. When a comet gets close to the Sun, it heats up and releases gas and dust, forming a bright tail.",
-    "What is a moon?": "A moon is a natural satellite that orbits around a planet. The solar system has many moons, with some planets having dozens or even hundreds of moons.",
-    "What is the Kuiper Belt?": "The Kuiper Belt is a region of the solar system beyond Neptune where many small, icy objects called Kuiper Belt Objects (KBOs) orbit around the Sun.",
-    "What is a dwarf planet?": "A dwarf planet is a celestial body that orbits the Sun, is round (or nearly round), but has not cleared its orbit of other debris. There are currently five recognized dwarf planets in the solar system: Ceres, Pluto, Haumea, Makemake, and Eris.",
-    "What is the Oort Cloud?": "The Oort Cloud is a hypothetical cloud of icy objects that is thought to surround the solar system at a distance of up to 100,000 astronomical units (AU) from the Sun. It is believed to be the source of long-period comets.",
-     "What is electricity?": "Electricity is the flow of charged particles, usually electrons, through a conductor.",
-    "What is a conductor?": "A conductor is a material that allows electric charge to flow through it easily. Metals such as copper and aluminum are good conductors.",
-    "What is an insulator?": "An insulator is a material that does not allow electric charge to flow through it easily. Examples of insulators include rubber, glass, and plastic.",
-    "What is voltage?": "Voltage is a measure of the electrical potential difference between two points in a circuit. It is measured in volts (V).",
-    "What is current?": "Current is a measure of the flow of electric charge through a circuit. It is measured in amperes (A).",
-    "What is resistance?": "Resistance is a measure of how much a material or component opposes the flow of electric current through it. It is measured in ohms (Ω).",
-    "What is Ohm's law?": "Ohm's law states that the current through a conductor between two points is directly proportional to the voltage across the two points. It can be expressed mathematically as I = V/R, where I is current, V is voltage, and R is resistance.",
-    "What is a circuit?": "A circuit is a closed loop or path through which electric current can flow. It typically consists of a source of electrical energy, such as a battery or power supply, and various components such as wires, resistors, and switches.",
-    "What is AC power?": "AC power is alternating current power, which is the type of electrical power that is commonly used in homes and businesses. It is called alternating current because the direction of the flow of electric charge in the circuit changes periodically.",
-    "What is DC power?": "DC power is direct current power, which is the type of electrical power that is produced by batteries and many electronic devices. It is called direct current because the flow of electric charge in the circuit is in only one direction.",
-    "What is a house?": "A house is a building that is designed or used as a place for people to live.",
-    "What are the parts of a house?": "The parts of a house include the foundation, walls, roof, windows, doors, floors, and various systems such as plumbing, heating, and electrical.",
-    "What is the difference between a house and a home?": "A house is a physical structure, while a home is a place where one lives and feels a sense of belonging and comfort.",
-    "What is a mortgage?": "A mortgage is a loan that is used to finance the purchase of a house. The house is typically used as collateral for the loan.",
-    "What is property tax?": "Property tax is a tax that is levied on real estate, including houses. The tax is based on the assessed value of the property and is typically used to fund local government services.",
-    "What is homeowner's insurance?": "Homeowner's insurance is a type of insurance that provides financial protection for a homeowner in case of damage or loss to their property. It typically covers damage from fire, theft, and certain natural disasters.",
-    "What is a home inspection?": "A home inspection is a thorough examination of a house by a professional inspector, typically before the sale of the house is finalized. The inspection is designed to identify any issues or problems with the house that could affect its value or safety.",
-    "What is a home warranty?": "A home warranty is a type of service contract that provides coverage for certain repairs or replacements in a house, typically for a set period of time after the purchase of the house.",
-    "What is a homeowner's association?": "A homeowner's association (HOA) is a governing body that is responsible for managing and maintaining common areas and amenities in a community of houses or condominiums. Homeowners are typically required to pay dues to the HOA.",
-    "what is the color of sky ?" : "It's Blue",
-    "what is color of sky ?" : "It's Blue",
-    "color of sky ?" : "It's Blue",
-    "Which team is best in IPL ?" : "According to me. I think it's CSK(Chennai Super Kings) and KKR(Kolkata Knight Riders)",
-    "What is the capital of India ?" : "Capital of India is Delhi",
-    "What is capital of India ?" : "Capital of India is Delhi",
-     "What is Earth?": "Earth is the third planet from the sun and the only known planet that supports life.",
-    "What is the size of Earth?": "Earth has a diameter of approximately 12,742 kilometers (7,918 miles) and a circumference of approximately 40,075 kilometers (24,901 miles).",
-    "What is size of Earth?": "Earth has a diameter of approximately 12,742 kilometers (7,918 miles) and a circumference of approximately 40,075 kilometers (24,901 miles).",
-    "What is the age of Earth?": "The age of Earth is estimated to be around 4.54 billion years old.",
-    "What is age of Earth?": "The age of Earth is estimated to be around 4.54 billion years old.",
-    "What is the atmosphere of Earth made of?": "The atmosphere of Earth is made up of approximately 78% nitrogen, 21% oxygen, and 1% other gases such as carbon dioxide and argon.",
-    "What is atmosphere of Earth made of?": "The atmosphere of Earth is made up of approximately 78% nitrogen, 21% oxygen, and 1% other gases such as carbon dioxide and argon.",
-    "What is the biosphere?": "The biosphere is the part of Earth where life exists. It includes all living organisms and their interactions with each other and with the environment.",
-    "What is biosphere?": "The biosphere is the part of Earth where life exists. It includes all living organisms and their interactions with each other and with the environment.",
-    "What is the lithosphere?": "The lithosphere is the solid outermost layer of Earth that includes the crust and uppermost part of the mantle.",
-    "What is lithosphere?": "The lithosphere is the solid outermost layer of Earth that includes the crust and uppermost part of the mantle.",
-    "What is the hydrosphere?": "The hydrosphere is the part of Earth that is made up of all the water on or near the surface of the planet, including oceans, lakes, rivers, and groundwater.",
-    "What is hydrosphere?": "The hydrosphere is the part of Earth that is made up of all the water on or near the surface of the planet, including oceans, lakes, rivers, and groundwater.",
-    "What is the green  house effect?": "The greenhouse effect is the natural process by which certain gases in the Earth's atmosphere, such as carbon dioxide and water vapor, trap heat from the sun and warm the planet's surface.",
-    "What is greenhouse effect?": "The greenhouse effect is the natural process by which certain gases in the Earth's atmosphere, such as carbon dioxide and water vapor, trap heat from the sun and warm the planet's surface.",
-    "What is climate change?": "Climate change is a long-term shift in the average weather patterns that have come to define Earth's local, regional and global climates. It is primarily caused by human activities, such as burning fossil fuels and deforestation, which release large amounts of greenhouse gases into the atmosphere.",
-    "what is the ocean?": "The ocean is a vast body of saltwater that covers over 70% of the Earth's surface.",
-    "what is ocean?": "The ocean is a vast body of saltwater that covers over 70% of the Earth's surface.",
-    "What is the depth of the ocean?": "The average depth of the ocean is about 12,080 feet (3,682 meters), while the deepest part of the ocean, the Challenger Deep in the Mariana Trench, reaches a depth of 36,070 feet (10,994 meters).",
-    "What is depth of the ocean?": "The average depth of the ocean is about 12,080 feet (3,682 meters), while the deepest part of the ocean, the Challenger Deep in the Mariana Trench, reaches a depth of 36,070 feet (10,994 meters).",
-    "What is the temperature of the ocean?": "The temperature of the ocean varies depending on location, depth, and season, but the average temperature of the ocean's surface water is around 62.6 degrees Fahrenheit (17 degrees Celsius).",
-    "What is temperature of the ocean?": "The temperature of the ocean varies depending on location, depth, and season, but the average temperature of the ocean's surface water is around 62.6 degrees Fahrenheit (17 degrees Celsius).",
-    "What is the salinity of the ocean?": "The salinity of the ocean is around 35 parts per thousand (ppt), meaning that for every 1 liter of water, there are approximately 35 grams of dissolved salts.",
-    "What is salinity of the ocean?": "The salinity of the ocean is around 35 parts per thousand (ppt), meaning that for every 1 liter of water, there are approximately 35 grams of dissolved salts.",
-    "What is the largest ocean?": "The largest ocean is the Pacific Ocean, which covers approximately one-third of the Earth's surface and contains more than half of the world's ocean water.",
-    "What is largest ocean?": "The largest ocean is the Pacific Ocean, which covers approximately one-third of the Earth's surface and contains more than half of the world's ocean water.",
-    "What is the importance of the ocean?": "The ocean plays a crucial role in regulating the Earth's climate, producing oxygen through photosynthesis by marine plants, supporting a diverse range of marine life, and providing food, transportation, and recreation for people around the world.",
-    "What is importance of the ocean?": "The ocean plays a crucial role in regulating the Earth's climate, producing oxygen through photosynthesis by marine plants, supporting a diverse range of marine life, and providing food, transportation, and recreation for people around the world.",
-    "What is ocean acidification?": "Ocean acidification is the ongoing decrease in the pH of the Earth's oceans, caused primarily by the uptake of carbon dioxide from the atmosphere. This process can have harmful effects on marine life, including the ability of certain organisms to build and maintain their shells and skeletons.",
-    "what is the largest continent in the world" : "Asia is the largest continent in the world",
-    "what is the smallest continent in the world" : "Australia is the smallest continent in the world",
-    "largest continent in the world" : "Asia",
-    "smallest continent in the world" : "Australia",
-    "really" : "Yes !!!",
-    "tell me a poem" : "I don't know any poem",
-    "poem please" : "I don't know any poem",
-    "What is the meaning of life?": "This is a philosophical question with various interpretations...",
-    "What is the Big Bang?": "The Big Bang theory is the prevailing cosmological explanation for the origin of the universe...",
-    "What is climate change?": "Climate change refers to long-term shifts in global or regional climate patterns...",
-    "What is DNA?": "DNA (deoxyribonucleic acid) is a molecule that carries genetic instructions for the development...",
-    "What is artificial intelligence (AI)?": "AI is the simulation of human intelligence processes by machines...",
-    "What is a pandemic?": "A pandemic is an outbreak of a disease that occurs over a wide geographic area...",
-    "What is the internet?": "The internet is a global network of interconnected computers and servers that enables...",
-    "What is a smartphone?": "A smartphone is a mobile device that combines the functions of a cell phone with those...",
-    "What is encryption?": "Encryption is the process of converting data into a code to prevent unauthorized access...",
-    "What is evolution?": "Evolution is the process by which living organisms change over generations through genetic variation...",
-    "What is a black hole?": "A black hole is a region in space where the gravitational pull is so strong that nothing...",
-    "What is photosynthesis?": "Photosynthesis is the process by which plants and some other organisms convert light energy...",
-    "What is a vaccine?": "A vaccine is a biological preparation that provides immunity to a specific disease by stimulating...",
-    "What is mental health?": "Mental health refers to emotional, psychological, and social well-being, encompassing one's thoughts...",
-    "What is a healthy diet?": "A healthy diet consists of a balanced intake of nutrients, including fruits, vegetables, whole grains...",
-    "What is deforestation?": "Deforestation is the removal or clearing of forests for various purposes, such as agriculture...",
-    "What is renewable energy?": "Renewable energy is energy derived from sources that are naturally replenished, such as solar...",
-    "What is recycling?": "Recycling is the process of converting waste materials into reusable materials to reduce...",
-    f"{invalid}" : "Sorry ! I will try to improve myself",
-    "What is the purpose of life?": "The purpose of life is a profound philosophical question that varies among individuals and cultures...",
-    "How do living organisms reproduce?": "Living organisms reproduce through various methods, including sexual reproduction...",
-    "What is the origin of life on Earth?": "The origin of life on Earth is still a subject of scientific research and debate...",
-    "What are the stages of human development?": "Human development encompasses stages from conception to old age, including infancy, childhood...",
-    "What is the meaning of death?": "Death is the cessation of biological functions and is often considered the end of an individual's life...",
-    "How do genetics influence our lives?": "Genetics play a significant role in determining traits, susceptibility to diseases, and various aspects...",
-    "What is the role of emotions in human life?": "Emotions are complex psychological and physiological responses that play a crucial role in human...",
-    "How do cultural beliefs shape our perception of life?": "Cultural beliefs and values influence how individuals perceive and approach life's meaning...",
-    "How has technology impacted human life?": "Technology has revolutionized various aspects of human life, from communication and healthcare...",
-    "What is the impact of the environment on life forms?": "The environment has a profound impact on life forms, affecting their survival, behavior, and evolution...",
-    "What is consciousness?": "Consciousness is the state of being aware of and able to think, perceive, and experience one's surroundings...",
-    "How does nutrition impact overall health?": "Nutrition plays a vital role in maintaining physical health, providing essential nutrients that support...",
-    "What is the role of relationships in a person's life?": "Relationships are important for emotional well-being and social interaction, providing support, companionship...",
-    "How does culture shape the concept of happiness?": "Cultural factors influence how individuals define and pursue happiness, including social norms...",
-    "What is the significance of education in life?": "Education equips individuals with knowledge, skills, and critical thinking abilities that empower...",
-    "What is the impact of art and creativity on well-being?": "Engaging in artistic and creative activities can enhance mental well-being, self-expression, and emotional...",
-    "How do different belief systems address the meaning of life?": "Various religious, philosophical, and spiritual belief systems offer diverse perspectives on the...",
-    "What is the role of ethics and morality in human life?": "Ethics and morality guide individuals in making ethical decisions, shaping their behaviors, and contributing...",
-    "How does personal growth contribute to a fulfilling life?": "Personal growth involves continuous self-improvement, learning, and self-awareness, leading to a more...",
-    "What are the psychological factors that influence life satisfaction?": "Psychological factors such as mindset, gratitude, resilience, and positive social connections...",
-    "What are moral lessons?": "Moral lessons are ethical principles or values that guide individuals in making virtuous choices...",
-    "Why are moral lessons important?": "Moral lessons help individuals develop empathy, integrity, and a sense of responsibility...",
-    "How do stories and literature convey moral lessons?": "Stories and literature often use characters and plotlines to illustrate moral dilemmas and teach lessons...",
-    "What is the role of cultural and societal norms in moral lessons?": "Cultural and societal norms influence the perception of right and wrong, contributing to the formation...",
-    "How do parents and caregivers teach moral lessons to children?": "Parents and caregivers impart moral lessons through role modeling, open discussions, setting boundaries...",
-    "What impact can moral lessons have on decision-making?": "Moral lessons shape ethical decision-making by guiding individuals to consider the consequences...",
-    "Can moral lessons change over time or across cultures?": "Moral lessons can evolve over time and vary across cultures due to changing social dynamics and shifts...",
-    "How do moral lessons relate to personal growth and character development?": "Moral lessons contribute to personal growth and character development by fostering qualities...",
-    "What is the connection between moral lessons and ethical dilemmas?": "Moral lessons provide a foundation for addressing ethical dilemmas, helping individuals navigate complex...",
-    "How do different philosophies and religions offer moral guidance?": "Different philosophies and religions provide moral guidance through their teachings, scriptures, and...",
-    "How do chatbots work?": "Chatbots use natural language processing (NLP) and machine learning algorithms to understand and generate...",
-    "What are the benefits of using chatbots?": "Chatbots offer 24/7 availability, quick responses, personalized interactions, and can handle repetitive...",
-    "Can chatbots understand human emotions?": "Advanced chatbots can recognize certain emotions through text analysis, but their understanding of emotions...",
-    "Are chatbots replacing human customer support agents?": "Chatbots can handle routine queries and tasks, but human customer support agents are still needed...",
-    "What are the limitations of current chatbot technology?": "Current chatbots may struggle with understanding complex or nuanced inquiries, and they lack...",
-    "How do chatbots learn and improve over time?": "Chatbots learn and improve through machine learning, analyzing user interactions and adapting...",
-    "What industries are using chatbots?": "Chatbots are employed in industries like customer service, e-commerce, healthcare, finance, and more...",
-    "What is the future of chatbot technology?": "The future of chatbots may involve more advanced AI, improved natural language understanding, and...",
-    "Can chatbots pass the Turing test?": "While some chatbots have come close to passing the Turing test, which evaluates a machine's ability...",
-    "What is the dark web?": "The dark web is a part of the internet that is intentionally hidden and requires specific software to access...",
-    "How is the dark web different from the deep web?": "The deep web refers to all parts of the internet not indexed by search engines, while the dark web specifically...",
-    "Is the dark web illegal?": "While not everything on the dark web is illegal, it is known for hosting illegal activities such as drug trafficking...",
-    "What are Tor and the Onion Router?": "Tor (The Onion Router) is a network that enables anonymous communication and access to the dark web...",
-    "What types of activities occur on the dark web?": "The dark web hosts a range of activities, including illegal markets, cybercrime, hacking services, counterfeit...",
-    "Is it safe to access the dark web?": "Accessing the dark web comes with risks, including exposure to illegal content, scams, malware, and potential...",
-    "How can law enforcement monitor the dark web?": "Law enforcement agencies use specialized tools and techniques to track illegal activities on the dark web...",
-    "Can you buy legitimate products or services on the dark web?": "While some legal and legitimate services may exist, the dark web is associated with high levels of anonymity...",
-    "What steps can individuals take to stay safe online and avoid the dark web?": "To stay safe online, individuals should practice good cybersecurity habits, avoid clicking on suspicious...",
-    "What are the ethical and legal implications of the dark web?": "The dark web raises complex ethical and legal questions related to privacy, free speech, illicit activities...",
-    "What is Natural Language Processing (NLP)?": "Natural Language Processing (NLP) is a field of artificial intelligence that focuses on enabling...",
-    "What are Transformers in NLP?": "Transformers are a type of neural network architecture designed for sequence-to-sequence tasks in NLP...",
-    "What is GPT in NLP?": "GPT (Generative Pre-trained Transformer) is a type of transformer model that has been pre-trained on a large...",
-    "How does GPT work?": "GPT uses a self-attention mechanism to process input data in parallel and capture contextual information...",
-    "What are the applications of GPT and transformers in NLP?": "GPT and transformers are used for various NLP tasks, including text generation, machine translation...",
-    "How is GPT pre-trained and fine-tuned?": "GPT is pre-trained on a large corpus of text data and fine-tuned on specific tasks using supervised learning...",
-    "What are the limitations of GPT and transformers in NLP?": "GPT and transformers may struggle with understanding nuanced context, generating coherent long text...",
-    "Are GPT and transformers used in industry and research?": "Yes, GPT and transformers are widely used in both industry and research for tasks such as chatbots, language...",
-    "What is transfer learning in NLP and how does it relate to GPT?": "Transfer learning involves training a model on one task and then adapting it to perform another task...",
-    "What is the future of NLP and transformer-based models?": "The future of NLP includes advancements in transformer architectures, model size, training techniques...",
-    "What are attention mechanisms in NLP?": "Attention mechanisms in NLP allow models like transformers to weigh different parts of the input...",
-    "What is BERT in NLP?": "BERT (Bidirectional Encoder Representations from Transformers) is a transformer-based model pre-trained...",
-    "How are transformers used in machine translation?": "Transformers are used in machine translation tasks by encoding the source language and decoding...",
-    "What is the significance of fine-tuning in NLP models?": "Fine-tuning customizes a pre-trained model for specific tasks, enabling it to learn task-specific patterns...",
-    "How do transformers handle long-range dependencies in text?": "Transformers handle long-range dependencies through self-attention, allowing them to capture...",
-    "What is the role of embeddings in NLP and transformers?": "Embeddings convert text into numerical vectors, allowing models to process and understand textual...",
-    "What are the challenges in building multilingual NLP models?": "Building multilingual NLP models requires addressing linguistic differences, varying data availability...",
-    "How do transformers improve upon earlier NLP models?": "Transformers improve NLP by capturing global context, handling long-range dependencies, and...",
-    "What are some popular transformer architectures other than GPT and BERT?": "Other popular transformer architectures include T5 (Text-To-Text Transfer Transformer), XLNet...",
-    "Can transformers be used for tasks beyond text-based NLP?": "Yes, transformers have been adapted for tasks like image generation, protein folding prediction...",
-    "Who is a singer?": "A singer is a person who uses their voice to create musical sounds, often performing songs as a solo artist or as part...",
-    "How do singers develop their vocal skills?": "Singers develop their vocal skills through practice, vocal exercises, proper breathing techniques, and often...",
-    "What are some famous singers in the music industry?": "Famous singers include artists like Beyoncé, Michael Jackson, Adele, Madonna, Elvis Presley, Taylor Swift...",
-    "What role does vocal range play in a singer's performance?": "Vocal range refers to the span between the highest and lowest notes a singer can comfortably sing...",
-    "How do singers choose songs that suit their voice?": "Singers choose songs based on factors like their vocal range, tone, style, and emotional connection to the lyrics...",
-    "Who is a writer?": "A writer is an individual who uses written language to communicate ideas, stories, information, and emotions...",
-    "How do writers overcome writer's block?": "Writers use various strategies to overcome writer's block, such as changing their writing environment, taking breaks...",
-    "What are some famous writers and their notable works?": "Famous writers include authors like William Shakespeare (Hamlet, Romeo and Juliet), Jane Austen (Pride and Prejudice)...",
-    "What role does research play in the writing process?": "Research is crucial for writers to ensure accuracy and credibility in their work, whether it's fiction, nonfiction...",
-    "How do writers find inspiration for their writing?": "Writers find inspiration from personal experiences, observations, reading, nature, current events, and their imagination...",
-    "What is capital in economics?": "Capital in economics refers to financial assets, resources, or wealth used to generate income, produce goods...",
-    "What are the different types of capital in economics?": "Types of capital include physical capital (machinery, equipment), human capital (skills, knowledge), financial...",
-    "How does capital contribute to economic growth?": "Capital investment leads to increased productivity, innovation, job creation, and overall economic development...",
-    "What is venture capital and how does it support startups?": "Venture capital is funding provided to early-stage startups with high growth potential, often in exchange for...",
-    "How is capital allocation important for businesses and investments?": "Effective capital allocation involves making strategic decisions to allocate resources where they can generate...",
-    "What is an operating system (OS)?": "An operating system is software that manages computer hardware and provides services to...",
-    "What are the functions of an operating system?": "An operating system manages hardware resources, provides user interfaces, runs applications, manages...",
-    "What are some examples of popular operating systems?": "Popular operating systems include Windows, macOS, Linux distributions (Ubuntu, Fedora), iOS, and Android...",
-    "What is multitasking and how does an OS support it?": "Multitasking allows multiple programs to run simultaneously. An OS schedules tasks, allocates resources...",
-    "How does virtual memory work in an operating system?": "Virtual memory uses a portion of storage as an extension of RAM, allowing larger programs to run...",
-    "What is Python?": "Python is a high-level programming language known for its simplicity, readability, and versatility...",
-    "What can you do with Python?": "Python is used for web development, data analysis, scientific computing, machine learning, automation...",
-    "How do you install Python?": "You can download and install Python from the official Python website. There are also package managers...",
-    "What are Python libraries and frameworks?": "Python libraries are pre-written code modules that extend Python's capabilities. Frameworks provide...",
-    "What is the Python interpreter?": "The Python interpreter executes Python code line by line and converts it into machine-understandable...",
-    "How is Python used in data science and machine learning?": "Python's rich ecosystem of libraries like NumPy, pandas, scikit-learn, and TensorFlow make it popular...",
-    "Is Python suitable for beginners?": "Yes, Python's easy-to-understand syntax and extensive documentation make it an excellent choice for beginners...",
-    "What are some well-known companies using Python?": "Companies like Google, Instagram, Dropbox, Spotify, and NASA use Python for various purposes...",
-    "How can I learn Python programming?": "You can learn Python through online tutorials, courses, coding platforms, books, and practice projects..."
+    # Lunch recipes
+    "Chicken Salad": {
+        "calories": 450, 
+        "protein": 35, 
+        "carbs": 15, 
+        "fat": 28,
+        "ingredients": "4 oz grilled chicken breast, 2 cups mixed greens, 1/4 cup cherry tomatoes, 1/4 cup cucumber, 2 tbsp olive oil, 1 tbsp balsamic vinegar",
+        "recipe": "Grill chicken and slice. Toss with greens and vegetables. Dress with olive oil and vinegar."
+    },
+    "Quinoa Bowl": {
+        "calories": 420, 
+        "protein": 18, 
+        "carbs": 60, 
+        "fat": 12,
+        "ingredients": "1 cup cooked quinoa, 1/2 cup black beans, 1/4 cup corn, 1/4 avocado, 1/4 cup salsa, lime juice",
+        "recipe": "Mix quinoa, beans, and corn. Top with avocado and salsa. Squeeze lime juice over the top."
+    },
+    "Tuna Wrap": {
+        "calories": 380, 
+        "protein": 25, 
+        "carbs": 40, 
+        "fat": 14,
+        "ingredients": "1 can tuna, 1 tbsp light mayo, 1 whole wheat wrap, 1/4 cup lettuce, 1/4 cup diced tomatoes",
+        "recipe": "Mix tuna with mayo. Spread on wrap. Add lettuce and tomatoes. Roll up and serve."
+    },
+    "Lentil Soup": {
+        "calories": 320, 
+        "protein": 18, 
+        "carbs": 45, 
+        "fat": 8,
+        "ingredients": "1 cup cooked lentils, 1/2 cup carrots, 1/2 cup celery, 1/2 cup onion, 2 cups vegetable broth, 1 tbsp olive oil, herbs and spices",
+        "recipe": "Sauté vegetables in oil. Add lentils and broth. Simmer for 20 minutes. Season with herbs and spices."
+    },
+    "Mediterranean Pasta Salad": {
+        "calories": 410, 
+        "protein": 15, 
+        "carbs": 55, 
+        "fat": 16,
+        "ingredients": "1 cup whole wheat pasta, 1/4 cup cherry tomatoes, 1/4 cup cucumber, 2 tbsp feta cheese, 2 tbsp olive oil, 1 tbsp red wine vinegar, herbs",
+        "recipe": "Cook pasta and cool. Toss with vegetables, cheese, oil, vinegar, and herbs."
+    },
+
+    # Dinner recipes
+    "Baked Salmon": {
+        "calories": 480, 
+        "protein": 40, 
+        "carbs": 25, 
+        "fat": 22,
+        "ingredients": "6 oz salmon fillet, 1 cup roasted broccoli, 1/2 cup brown rice, 1 tbsp olive oil, lemon, herbs",
+        "recipe": "Season salmon with herbs. Bake at 400°F for 15 minutes. Serve with roasted broccoli and brown rice."
+    },
+    "Stir-Fry Tofu": {
+        "calories": 390, 
+        "protein": 22, 
+        "carbs": 45, 
+        "fat": 16,
+        "ingredients": "4 oz tofu, 1 cup mixed vegetables, 1/2 cup brown rice, 1 tbsp soy sauce, 1 tbsp sesame oil, ginger, garlic",
+        "recipe": "Press and cube tofu. Stir-fry tofu and vegetables in sesame oil. Add soy sauce, ginger, and garlic. Serve over rice."
+    },
+    "Turkey Chili": {
+        "calories": 420, 
+        "protein": 35, 
+        "carbs": 40, 
+        "fat": 12,
+        "ingredients": "4 oz ground turkey, 1/2 cup kidney beans, 1/2 cup diced tomatoes, 1/4 cup onion, 1/4 cup bell pepper, chili powder, cumin",
+        "recipe": "Brown turkey. Add vegetables and spices. Simmer for 20 minutes. Add beans and tomatoes. Cook for 10 more minutes."
+    },
+    "Vegetable Curry": {
+        "calories": 360, 
+        "protein": 12, 
+        "carbs": 50, 
+        "fat": 14,
+        "ingredients": "1 cup mixed vegetables, 1/2 cup chickpeas, 1/2 cup coconut milk, 1/2 cup brown rice, curry powder, turmeric, garlic, ginger",
+        "recipe": "Sauté garlic and ginger. Add vegetables and spices. Pour in coconut milk. Simmer for 15 minutes. Add chickpeas. Serve over rice."
+    },
+    "Grilled Chicken with Sweet Potato": {
+        "calories": 450, 
+        "protein": 38, 
+        "carbs": 35, 
+        "fat": 16,
+        "ingredients": "5 oz chicken breast, 1 medium sweet potato, 1 cup steamed green beans, 1 tbsp olive oil, herbs and spices",
+        "recipe": "Season chicken with herbs and grill. Bake sweet potato at 400°F for 45 minutes. Steam green beans. Drizzle with olive oil."
+    }
 }
 
-# Define a function to remove emoji from the text
-def remove_emoji_tag(text):
-    """So, r'[^\w\s,.]' means:
+# Welcome message and instructions
+welcome_message = """
+🍽️ Welcome to SmartMealPlanner! 🍽️
 
-    1. (^\w) matches any character that is not a word character (letters, digits, or underscores).
-    2. (\s) matches any whitespace character (spaces, tabs, line breaks).
-    3. (,) matches a comma.
-    4. (.) matches a period.
-    """
-    return re.sub(r'[^\w\s,.]', '' , text)
+I'll help you create a personalized 7-day meal plan based on your caloric needs and macronutrient preferences.
 
-# Define a function to auto correct the word
-def auto_correct_sentence(text):
-    corrected_text = TextBlob(text).correct()
-    return str(corrected_text)
+To get started, I'll need to collect some information:
+1. Your daily calorie goal
+2. Your macronutrient preferences (protein/carbs/fat percentages)
+3. Any dietary restrictions or allergies
 
-# Define a function to generate responses with typing errors
-def generate_response(user_input):
-    user_input = remove_emoji_tag(user_input)
-    user_input = auto_correct_sentence(user_input)
-    user_input = user_input.lower() # Convert input to lowercase
-    response = "I'm sorry, I don't understand. Can you please rephrase your question?" # Default response if no matching keyword found
-    current_time = time.strftime('%H:%M:%S')
-    responses.update({"what is the time": f"{current_time}"})
-    responses.update({"tell me a joke": f"{pyjokes.get_joke()}"})
-    responses.update({"tell me a jokes": f"{pyjokes.get_joke()}"})
-    responses.update({"joke" : f"{pyjokes.get_joke()}"})
-    responses.update({"jokes" : f"{pyjokes.get_joke()}"})
-    responses.update({"what is the time": f"{current_time}"})
-    responses.update({"What day is it today?": f"{time.strftime('%D')}"})
-    min_distance = np.inf # Initialize minimum Levenshtein distance to infinity
-    for keyword in responses:
-        distance = Levenshtein.distance(keyword, user_input)
-        if distance < min_distance:
-            min_distance = distance
-            response = responses[keyword]
-            
-    return response
+Ready to begin? Type 'START' to continue or 'HELP' for more information.
+"""
 
-if __name__ == "__main__":
-    while True:
-        user_input = input("User: ")
-        if user_input.lower() == "bye":
-            print("ChatBot: Goodbye, have a nice day!")
-            break
+help_message = """
+📋 SmartMealPlanner Help 📋
+
+Here are the commands you can use:
+- START: Begin the meal planning process
+- HELP: Show this help message
+- RESET: Start over with new information
+- EXIT: End the conversation
+
+During the meal planning process, I'll ask you questions about your:
+- Daily calorie goal (e.g., 2000)
+- Macronutrient split (e.g., 30% protein, 40% carbs, 30% fat)
+- Dietary restrictions (e.g., vegetarian, gluten-free)
+- Food allergies (e.g., nuts, dairy)
+
+After collecting this information, I'll generate a personalized 7-day meal plan with recipes and nutritional information.
+
+Ready to begin? Type 'START' to continue.
+"""
+
+# User information dictionary
+user_info = {
+    "state": "initial",  # Possible states: initial, asking_calories, asking_protein, asking_carbs, asking_fat, asking_restrictions, planning, complete
+    "calories": 0,
+    "protein_percent": 0,
+    "carbs_percent": 0,
+    "fat_percent": 0,
+    "restrictions": [],
+    "allergies": []
+}
+
+# Function to generate meal plan based on user information
+def create_meal_plan(user_info):
+    meal_plan = {}
+    today = datetime.now()
+    
+    # Filter recipes based on user restrictions and allergies
+    # In a real implementation, this would be more sophisticated
+    available_recipes = {
+        "breakfast": ["Overnight Oats", "Vegetable Omelette", "Avocado Toast", "Protein Smoothie", "Greek Yogurt Parfait"],
+        "lunch": ["Chicken Salad", "Quinoa Bowl", "Tuna Wrap", "Lentil Soup", "Mediterranean Pasta Salad"],
+        "dinner": ["Baked Salmon", "Stir-Fry Tofu", "Turkey Chili", "Vegetable Curry", "Grilled Chicken with Sweet Potato"]
+    }
+    
+    # Calculate macro targets
+    protein_calories = user_info["calories"] * (user_info["protein_percent"] / 100)
+    carbs_calories = user_info["calories"] * (user_info["carbs_percent"] / 100)
+    fat_calories = user_info["calories"] * (user_info["fat_percent"] / 100)
+    
+    protein_grams = protein_calories / 4  # 4 calories per gram of protein
+    carbs_grams = carbs_calories / 4      # 4 calories per gram of carbs
+    fat_grams = fat_calories / 9          # 9 calories per gram of fat
+    
+    daily_targets = {
+        "calories": user_info["calories"],
+        "protein": protein_grams,
+        "carbs": carbs_grams,
+        "fat": fat_grams
+    }
+    
+    # Generate 7-day meal plan
+    for i in range(7):
+        day = (today + timedelta(days=i+1)).strftime("%A, %B %d")
+        
+        # Randomly select meals for the day
+        breakfast = random.choice(available_recipes["breakfast"])
+        lunch = random.choice(available_recipes["lunch"])
+        dinner = random.choice(available_recipes["dinner"])
+        
+        # Calculate daily nutrition totals
+        day_calories = recipes_db[breakfast]["calories"] + recipes_db[lunch]["calories"] + recipes_db[dinner]["calories"]
+        day_protein = recipes_db[breakfast]["protein"] + recipes_db[lunch]["protein"] + recipes_db[dinner]["protein"]
+        day_carbs = recipes_db[breakfast]["carbs"] + recipes_db[lunch]["carbs"] + recipes_db[dinner]["carbs"]
+        day_fat = recipes_db[breakfast]["fat"] + recipes_db[lunch]["fat"] + recipes_db[dinner]["fat"]
+        
+        meal_plan[day] = {
+            "breakfast": breakfast,
+            "lunch": lunch,
+            "dinner": dinner,
+            "totals": {
+                "calories": day_calories,
+                "protein": day_protein,
+                "carbs": day_carbs,
+                "fat": day_fat
+            }
+        }
+    
+    return meal_plan, daily_targets
+
+# Function to format meal plan as text
+def format_meal_plan(meal_plan, daily_targets):
+    plan_text = "📅 YOUR 7-DAY MEAL PLAN 📅\n\n"
+    plan_text += f"Daily Targets: {daily_targets['calories']} calories, {daily_targets['protein']:.0f}g protein, "
+    plan_text += f"{daily_targets['carbs']:.0f}g carbs, {daily_targets['fat']:.0f}g fat\n\n"
+    
+    # Store data for charts
+    days = []
+    calories = []
+    proteins = []
+    carbs = []
+    fats = []
+    
+    for day, meals in meal_plan.items():
+        days.append(day.split(',')[0])  # Just the day name for the chart
+        calories.append(meals["totals"]["calories"])
+        proteins.append(meals["totals"]["protein"])
+        carbs.append(meals["totals"]["carbs"])
+        fats.append(meals["totals"]["fat"])
+        
+        plan_text += f"--- {day} ---\n"
+        plan_text += f"Breakfast: {meals['breakfast']} ({recipes_db[meals['breakfast']]['calories']} cal)\n"
+        plan_text += f"  Ingredients: {recipes_db[meals['breakfast']]['ingredients']}\n"
+        plan_text += f"  Recipe: {recipes_db[meals['breakfast']]['recipe']}\n\n"
+        
+        plan_text += f"Lunch: {meals['lunch']} ({recipes_db[meals['lunch']]['calories']} cal)\n"
+        plan_text += f"  Ingredients: {recipes_db[meals['lunch']]['ingredients']}\n"
+        plan_text += f"  Recipe: {recipes_db[meals['lunch']]['recipe']}\n\n"
+        
+        plan_text += f"Dinner: {meals['dinner']} ({recipes_db[meals['dinner']]['calories']} cal)\n"
+        plan_text += f"  Ingredients: {recipes_db[meals['dinner']]['ingredients']}\n"
+        plan_text += f"  Recipe: {recipes_db[meals['dinner']]['recipe']}\n\n"
+        
+        plan_text += f"Daily Totals: {meals['totals']['calories']} calories, "
+        plan_text += f"{meals['totals']['protein']}g protein, {meals['totals']['carbs']}g carbs, {meals['totals']['fat']}g fat\n\n"
+    
+    # Create nutrition data for visualization
+    nutrition_data = {
+        'Day': days,
+        'Calories': calories,
+        'Protein (g)': proteins,
+        'Carbs (g)': carbs,
+        'Fat (g)': fats
+    }
+    
+    return plan_text, nutrition_data
+
+# Function to create nutrition charts
+def create_nutrition_charts(nutrition_data):
+    try:
+        df = pd.DataFrame(nutrition_data)
+        
+        # Create figure with two subplots
+        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 12))
+        
+        # Plot 1: Daily calorie distribution
+        ax1.bar(df['Day'], df['Calories'], color='skyblue')
+        ax1.set_title('Daily Calorie Distribution')
+        ax1.set_ylabel('Calories')
+        ax1.axhline(y=df['Calories'].mean(), color='r', linestyle='--', label=f'Average: {df["Calories"].mean():.0f} cal')
+        ax1.legend()
+        
+        # Plot 2: Macronutrient breakdown
+        width = 0.25
+        x = np.arange(len(df['Day']))
+        
+        ax2.bar(x - width, df['Protein (g)'], width, label='Protein', color='salmon')
+        ax2.bar(x, df['Carbs (g)'], width, label='Carbs', color='lightgreen')
+        ax2.bar(x + width, df['Fat (g)'], width, label='Fat', color='gold')
+        
+        ax2.set_title('Daily Macronutrient Breakdown')
+        ax2.set_ylabel('Grams')
+        ax2.set_xticks(x)
+        ax2.set_xticklabels(df['Day'])
+        ax2.legend()
+        
+        plt.tight_layout()
+        plt.savefig('meal_plan_nutrition.png')
+        plt.close()
+        return True
+    except Exception as e:
+        print(f"Error creating chart: {e}")
+        return False
+
+# Main function to process user input
+def process_input(user_input):
+    user_input = user_input.strip().lower()
+    
+    # Initial state: waiting for START command
+    if user_info["state"] == "initial":
+        if user_input == "start":
+            user_info["state"] = "asking_calories"
+            return "Great! Let's start by setting your daily calorie goal.\n\nHow many calories would you like to consume per day? (e.g., 1800, 2000, 2500)"
+        elif user_input == "help":
+            return help_message
+        elif user_input == "exit":
+            return "Thank you for using SmartMealPlanner. Goodbye!"
         else:
-            response = generate_response(user_input)
-            current_time = time.strftime('%H:%M:%S')
-            responses.update({"what is the time": f"{current_time}"})
-            responses.update({"what is the time": f"{current_time}"})
-            responses.update({"What day is it today?": f"{time.strftime('%D')}"})
-            responses.update({"tell me a joke" : f"{pyjokes.get_joke()}"})
-            responses.update({"tell me a jokes" : f"{pyjokes.get_joke()}"})
-            responses.update({"joke" : f"{pyjokes.get_joke()}"})
-            responses.update({"jokes" : f"{pyjokes.get_joke()}"})
-            print("ChatBot: " + response)
+            return "I didn't understand that. Please type 'START' to begin, 'HELP' for more information, or 'EXIT' to quit."
+    
+    # Collecting calorie information
+    elif user_info["state"] == "asking_calories":
+        try:
+            calories = int(user_input)
+            if calories < 1200 or calories > 4000:
+                return "Please enter a reasonable daily calorie goal between 1200 and 4000 calories."
+            user_info["calories"] = calories
+            user_info["state"] = "asking_protein"
+            return f"Great! Your daily calorie goal is set to {calories} calories.\n\nNow, what percentage of your calories would you like to come from protein? (e.g., 30)"
+        except ValueError:
+            if user_input == "reset":
+                user_info["state"] = "initial"
+                return welcome_message
+            elif user_input == "help":
+                return help_message
+            elif user_input == "exit":
+                return "Thank you for using SmartMealPlanner. Goodbye!"
+            else:
+                return "Please enter a valid number for your daily calorie goal (e.g., 2000)."
+    
+    # Collecting protein percentage
+    elif user_info["state"] == "asking_protein":
+        try:
+            protein_percent = int(user_input)
+            if protein_percent < 10 or protein_percent > 50:
+                return "Please enter a reasonable protein percentage between 10% and 50%."
+            user_info["protein_percent"] = protein_percent
+            user_info["state"] = "asking_carbs"
+            return f"Great! {protein_percent}% of your calories will come from protein.\n\nWhat percentage of your calories would you like to come from carbohydrates? (e.g., 40)"
+        except ValueError:
+            if user_input == "reset":
+                user_info["state"] = "initial"
+                return welcome_message
+            elif user_input == "help":
+                return help_message
+            elif user_input == "exit":
+                return "Thank you for using SmartMealPlanner. Goodbye!"
+            else:
+                return "Please enter a valid number for your protein percentage (e.g., 30)."
+    
+    # Collecting carbs percentage
+    elif user_info["state"] == "asking_carbs":
+        try:
+            carbs_percent = int(user_input)
+            if carbs_percent < 10 or carbs_percent > 60:
+                return "Please enter a reasonable carbohydrate percentage between 10% and 60%."
+            user_info["carbs_percent"] = carbs_percent
+            
+            # Check if protein + carbs is already > 100%
+            if user_info["protein_percent"] + carbs_percent > 100:
+                return f"The combined percentage of protein and carbs ({user_info['protein_percent'] + carbs_percent}%) exceeds 100%. Please enter a lower carbohydrate percentage."
+            
+            user_info["state"] = "asking_fat"
+            return f"Great! {carbs_percent}% of your calories will come from carbohydrates.\n\nWhat percentage of your calories would you like to come from fat? Note: Protein + Carbs + Fat should total 100%. Based on your inputs, this should be {100 - user_info['protein_percent'] - carbs_percent}%."
+        except ValueError:
+            if user_input == "reset":
+                user_info["state"] = "initial"
+                return welcome_message
+            elif user_input == "help":
+                return help_message
+            elif user_input == "exit":
+                return "Thank you for using SmartMealPlanner. Goodbye!"
+            else:
+                return "Please enter a valid number for your carbohydrate percentage (e.g., 40)."
+    
+    # Collecting fat percentage
+    elif user_info["state"] == "asking_fat":
+        try:
+            fat_percent = int(user_input)
+            total_percent = user_info["protein_percent"] + user_info["carbs_percent"] + fat_percent
+            
+            if fat_percent < 10 or fat_percent > 60:
+                return "Please enter a reasonable fat percentage between 10% and 60%."
+            
+            if total_percent != 100:
+                return f"The total of protein, carbs, and fat percentages ({total_percent}%) must equal 100%. Please enter {100 - user_info['protein_percent'] - user_info['carbs_percent']}% for fat."
+            
+            user_info["fat_percent"] = fat_percent
+            user_info["state"] = "asking_restrictions"
+            return "Great! Now, do you have any dietary restrictions? (e.g., vegetarian, vegan, gluten-free, none)"
+        except ValueError:
+            if user_input == "reset":
+                user_info["state"] = "initial"
+                return welcome_message
+            elif user_input == "help":
+                return help_message
+            elif user_input == "exit":
+                return "Thank you for using SmartMealPlanner. Goodbye!"
+            else:
+                return "Please enter a valid number for your fat percentage."
+    
+    # Collecting dietary restrictions
+    elif user_info["state"] == "asking_restrictions":
+        if user_input == "none":
+            user_info["restrictions"] = []
+        else:
+            user_info["restrictions"] = [r.strip() for r in user_input.split(",")]
+        
+        user_info["state"] = "asking_allergies"
+        return "Got it! Do you have any food allergies? (e.g., nuts, dairy, eggs, none)"
+    
+    # Collecting allergies
+    elif user_info["state"] == "asking_allergies":
+        if user_input == "none":
+            user_info["allergies"] = []
+        else:
+            user_info["allergies"] = [a.strip() for a in user_input.split(",")]
+        
+        user_info["state"] = "planning"
+        return "Thank you for providing all the necessary information! I'm now generating your personalized 7-day meal plan. This might take a moment..."
+    
+    # Generate meal plan
+    elif user_info["state"] == "planning":
+        meal_plan, daily_targets = create_meal_plan(user_info)
+        plan_text, nutrition_data = format_meal_plan(meal_plan, daily_targets)
+        chart_created = create_nutrition_charts(nutrition_data)
+        
+        user_info["state"] = "complete"
+        
+        response = "✅ Your 7-day meal plan is ready! ✅\n\n"
+        response += "I've created a personalized meal plan based on your requirements:\n"
+        response += f"- Daily Calorie Goal: {user_info['calories']} calories\n"
+        response += f"- Macros: {user_info['protein_percent']}% protein, {user_info['carbs_percent']}% carbs, {user_info['fat_percent']}% fat\n"
+        
+        if user_info["restrictions"]:
+            response += f"- Dietary Restrictions: {', '.join(user_info['restrictions'])}\n"
+        if user_info["allergies"]:
+            response += f"- Food Allergies: {', '.join(user_info['allergies'])}\n"
+        
+        response += "\n" + plan_text
+        
+        if chart_created:
+            response += "\nI've also created nutrition charts to help you visualize your meal plan. Check out the 'meal_plan_nutrition.png' file.\n\n"
+        
+        response += "Would you like to start over with new information? Type 'RESET' to begin again, or 'EXIT' to quit."
+        
+        return response
+    
+    # Plan is complete, waiting for reset or exit
+    elif user_info["state"] == "complete":
+        if user_input == "reset":
+            user_info["state"] = "initial"
+            user_info["calories"] = 0
+            user_info["protein_percent"] = 0
+            user_info["carbs_percent"] = 0
+            user_info["fat_percent"] = 0
+            user_info["restrictions"] = []
+            user_info["allergies"] = []
+            return welcome_message
+        elif user_input == "exit":
+            return "Thank you for using SmartMealPlanner. Goodbye!"
+        else:
+            return "Your meal plan is complete. Type 'RESET' to start over with new information, or 'EXIT' to quit."
+    
+    # Default response for unknown states
+    else:
+        user_info["state"] = "initial"
+        return "Something went wrong. Let's start over.\n\n" + welcome_message
+
+# Function to handle user input - this is the main function called by the UI
+def generate_meal_plan(user_input):
+    # Check for global commands that work in any state
+    user_input_lower = user_input.lower().strip()
+    
+    if user_input_lower == "exit":
+        return "Thank you for using SmartMealPlanner. Goodbye!"
+    elif user_input_lower == "help":
+        return help_message
+    elif user_input_lower == "reset":
+        # Reset user info
+        user_info["state"] = "initial"
+        user_info["calories"] = 0
+        user_info["protein_percent"] = 0
+        user_info["carbs_percent"] = 0
+        user_info["fat_percent"] = 0
+        user_info["restrictions"] = []
+        user_info["allergies"] = []
+        return welcome_message
+    else:
+        # Process based on current state
+        return process_input(user_input)
+
+# Return welcome message on first run
+if __name__ == "__main__":
+    print(welcome_message)
