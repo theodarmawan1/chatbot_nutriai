@@ -1,197 +1,136 @@
 import tkinter as tk
-from tkinter import *
-import customtkinter as ct
-from PIL import Image, ImageTk
+from tkinter import messagebox, scrolledtext
 import time
 import os
-import cProfile, random
+import json
 from generate_response import generate_meal_plan, welcome_message
-
-root = ct.CTk()
-root.title("ChatRoom")
-ct.set_appearance_mode("dark")
-ct.set_default_color_theme("green")
-bgColor = "black"
-root.configure(fg_color=bgColor)
-root.geometry("1000x650+500+100")
-
-file_path = "imagename.txt"
-
-if os.path.exists(file_path):
-    pass
-else:
-    with open(file_path, "x") as f:
-        pass
-
-with open(file_path, "w") as img_src:
-    image_list = ["AI\\images\\avator.png", "AI\\images\\avator1.png", "AI\\images\\avator2.png"]
-    my_image = random.choice(image_list)
-    print(my_image)
-    img_src.write(f"{my_image}")
+from matplotlib import pyplot as plt
+import matplotlib.image as mpimg
+import threading
 
 class ChatApp:
     def __init__(self, root):
         self.root = root
-        self.root.resizable(True, True)
-        self.root.geometry("520x620+500+100")
+        self.root.title("SmartMealPlanner Chat")
+        self.root.geometry("700x600")
 
-        self.optionFram = Frame(root, bg="black")
-        # All imagas for chatfram code
+        self.chat_display = scrolledtext.ScrolledText(self.root, wrap=tk.WORD, state='disabled', font=("Consolas", 12))
+        self.chat_display.pack(padx=10, pady=10, fill=tk.BOTH, expand=True)
 
-        manIconSrc2 = Image.open("AI\\images\\robot.png")
-        manIconImage2 = ImageTk.PhotoImage(manIconSrc2.resize((40, 40)))
-        submitIconSrc = Image.open("AI\\images\\send2.png")
-        submitIconImage = ImageTk.PhotoImage(submitIconSrc.resize((40, 40)))
-        messageIconSrc = Image.open("AI\\images\\message.png")
-        messageIconImage = ImageTk.PhotoImage(messageIconSrc.resize((40, 40)))
-        chatIconSrc = Image.open("AI\\images\\chat.png")
-        chatIconImage = ImageTk.PhotoImage(chatIconSrc.resize((35, 35)))
+        self.input_frame = tk.Frame(self.root)
+        self.input_frame.pack(pady=5, fill=tk.X)
 
-        # All imagas for chatfram code ends here
+        self.input_field = tk.Entry(self.input_frame, font=("Consolas", 12))
+        self.input_field.pack(side=tk.LEFT, padx=10, pady=5, fill=tk.X, expand=True)
+        self.input_field.bind("<Return>", self.send_message)
 
-        self.messageIcon = ct.CTkButton(self.optionFram, text="",image=messageIconImage, width=0, bg_color=bgColor, fg_color=bgColor)
-        self.messageIcon.pack(side=RIGHT, anchor="nw", padx=5, pady=5)
+        self.send_button = tk.Button(self.input_frame, text="Send", command=self.send_message)
+        self.send_button.pack(side=tk.RIGHT, padx=10)
 
-        self.manIcon2 = ct.CTkButton(self.optionFram, text="",image=manIconImage2, height=1, width=1, bg_color=bgColor, fg_color=bgColor,
-                                corner_radius=20)
-        self.manIcon2.pack(side=LEFT, anchor="ne")
+        self.menu_bar = tk.Menu(self.root)
+        self.history_menu = tk.Menu(self.menu_bar, tearoff=0)
+        self.history_menu.add_command(label="New Chat", command=self.start_new_chat)
+        self.load_history_menu()
+        self.menu_bar.add_cascade(label="History", menu=self.history_menu)
+        self.root.config(menu=self.menu_bar)
 
-        self.username = ct.CTkLabel(self.optionFram, text="ChatBot", font=("consolas", 20), text_color="#d8d8df")
-        self.username.pack(side=LEFT, padx=5, pady=7, anchor="ne")
-        self.optionFram.pack(side=TOP, fill=X, anchor="n")
+        self.counter = 1
+        self.chat_id = self.get_new_chat_id()
+        self.chat_history = []
+        self.display_bot_message(welcome_message)
 
-        self.canvas = tk.Canvas(root, bg="black", highlightthickness=0)
+    def get_new_chat_id(self):
+        chat_id = f"chat-{self.counter}-{time.strftime('%Y%m%d%H%M%S')}"
+        self.counter += 1
+        return chat_id
 
-        self.label_frame = tk.Frame(self.canvas, bg="black")
-        self.label_frame.pack(side="left", fill="both", expand=True)
+    def start_new_chat(self):
+        self.chat_id = self.get_new_chat_id()
+        self.chat_display.config(state='normal')
+        self.chat_display.delete('1.0', tk.END)
+        self.chat_display.config(state='disabled')
+        self.chat_history = []
+        self.display_bot_message(welcome_message)
 
-        self.scrollable_window = self.canvas.create_window((0, 0), window=self.label_frame, anchor="nw")
+    def load_history_menu(self):
+        self.history_menu.add_separator()
+        if not os.path.exists("history"):
+            os.makedirs("history")
+        for fname in sorted(os.listdir("history")):
+            if fname.endswith(".json"):
+                chat_id = fname.replace(".json", "")
+                self.history_menu.add_command(label=chat_id, command=lambda cid=chat_id: self.load_chat(cid))
 
-        self.canvas.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
+    def load_chat(self, chat_id):
+        path = os.path.join("history", f"{chat_id}.json")
+        if os.path.exists(path):
+            with open(path, "r") as f:
+                self.chat_history = json.load(f)
+            self.chat_id = chat_id
+            self.chat_display.config(state='normal')
+            self.chat_display.delete('1.0', tk.END)
+            for entry in self.chat_history:
+                self.chat_display.insert(tk.END, f"{entry['sender']} ({entry['time']}):\n{entry['message']}\n\n")
+            self.chat_display.config(state='disabled')
 
-        self.label_frame.bind("<Configure>", self.configure_scroll_region)
+    def save_message(self, sender, message):
+        entry = {
+            "sender": sender,
+            "time": time.strftime("%H:%M"),
+            "message": message
+        }
+        self.chat_history.append(entry)
+        if not os.path.exists("history"):
+            os.makedirs("history")
+        with open(os.path.join("history", f"{self.chat_id}.json"), "w") as f:
+            json.dump(self.chat_history, f, indent=2)
 
-        self.scrollbar = ct.CTkScrollbar(self.canvas, orientation="vertical", command=self.canvas.yview)
-        self.canvas.configure(yscrollcommand=self.scrollbar.set)
-        self.canvas.yview_moveto(1.0)
+    def send_message(self, event=None):
+        user_message = self.input_field.get().strip()
+        if user_message == "":
+            return
+        self.display_user_message(user_message)
+        self.save_message("You", user_message)
+        self.input_field.delete(0, tk.END)
+        threading.Thread(target=self.get_bot_response, args=(user_message,)).start()
 
-        self.scrollbar.pack(side="right", fill=Y)
+    def display_user_message(self, message):
+        self.chat_display.config(state='normal')
+        timestamp = time.strftime("%H:%M")
+        self.chat_display.insert(tk.END, f"You ({timestamp}):\n{message}\n\n")
+        self.chat_display.config(state='disabled')
+        self.chat_display.yview(tk.END)
 
-        self.canvas.bind("<Configure>", self.resize_frame)
-        self.canvas.pack(side=TOP, fill=BOTH)
+    def display_bot_message(self, message):
+        self.chat_display.config(state='normal')
+        timestamp = time.strftime("%H:%M")
+        self.chat_display.insert(tk.END, f"Bot ({timestamp}):\n{message}\n\n")
+        self.chat_display.config(state='disabled')
+        self.chat_display.yview(tk.END)
+        self.save_message("Bot", message)
 
-        bgColorChatFram = "#080420"
-        self.chatFram = Frame(root, bg=bgColorChatFram)
+    def get_bot_response(self, user_input):
+        response = generate_meal_plan(user_input)
+        if isinstance(response, tuple):
+            message, chart_file = response
+            self.display_bot_message(message)
+            self.ask_show_chart(chart_file)
+        else:
+            self.display_bot_message(response)
 
-        self.chatIcon = ct.CTkButton(self.chatFram, text="",image=chatIconImage, width=20, bg_color=bgColorChatFram, fg_color=bgColorChatFram)
-        self.chatIcon.pack(side=LEFT, padx=5)
-
-        self.msgInput = ct.CTkEntry(self.chatFram, placeholder_text="Type your message here...", height=40, font=("consolas", 18))
-        self.msgInput.pack(side=LEFT, pady=10, padx=0, fill=X, expand=True)
-
-        self.submitBtn = ct.CTkButton(self.chatFram, text="", image=submitIconImage, bg_color=bgColorChatFram, fg_color=bgColorChatFram, height=40, width=20, hover_color=bgColorChatFram)
-        self.submitBtn.pack(side=LEFT, padx=0, pady=8)
-        self.submitBtn.configure(command=self.sendMessage)
-
-        self.chatFram.pack(side=BOTTOM, fill=X, ipady=5)
-        self.display_welcome_message()
-
-        self.root.bind("<Return>", lambda event: self.sendMessage())
-
-    def display_welcome_message(self):
-        bot_image_src = Image.open("AI\\images\\robot.png")
-        bot_image = ImageTk.PhotoImage(bot_image_src.resize((40, 40)))
-
-        current_time = time.strftime("%H:%M")
-        current_time_label = ct.CTkLabel(self.label_frame, text=current_time, font=("consolas", 12))
-        current_time_label.pack(side=TOP, anchor="nw", pady=0, padx=55)
-
-        bot_frame = ct.CTkFrame(self.label_frame, fg_color="black")
-        bot_frame.pack(side=TOP, anchor="nw", padx=10)
-
-        bot_response_label = ct.CTkLabel(
-            bot_frame,
-            text=welcome_message,
-            font=("Poppins", 14),
-            fg_color="#444",
-            corner_radius=6,
-            wraplength=300
-        )
-        bot_response_label.pack(side=RIGHT, pady=5, padx=5)
-
-        bot_image_label = ct.CTkLabel(bot_frame, text="", image=bot_image, fg_color="black")
-        bot_image_label.image = bot_image
-        bot_image_label.pack(side=TOP, pady=13)
-
-    def sendMessage(self):
-        with open(file_path, "r") as f:
-            self.imagename = f.read()
-            print(self.imagename)
-
-        self.message = self.msgInput.get()
-        self.msgInput.delete(0, END)
-        user_image_src = Image.open(self.imagename)
-        user_image = ImageTk.PhotoImage(user_image_src.resize((40, 40)))        
-        bot_image_src = Image.open("AI\\images\\robot.png")
-        bot_image = ImageTk.PhotoImage(bot_image_src.resize((40, 40)))
-        if self.message != "":
-            self.current_time = time.strftime("%H:%M")
-            self.current_time_label = ct.CTkLabel(self.label_frame, text=self.current_time, font=("consolas", 12))
-            self.current_time_label.pack(side=TOP, anchor="ne", pady=0, padx=45)
-
-            self.user_frame = ct.CTkFrame(self.label_frame, fg_color="black")
-            self.user_frame.pack(side=TOP, anchor="ne")
-            self.user_label = ct.CTkLabel(self.user_frame, text=self.message, font=("Poppins", 15), fg_color="#419f5b", corner_radius=4,
-                                    wraplength=250)
-            self.user_label.pack(side=LEFT, anchor="nw", pady=1, ipadx=15, ipady=6, padx=10)
-            self.user_image_label = ct.CTkLabel(self.user_frame, text="", image=user_image, fg_color="black")
-            self.user_image_label.pack(side=TOP, pady=13)
-            self.root.update_idletasks()
-            self.canvas.update_idletasks()
-            self.canvas.yview_moveto(1.0)
+    def ask_show_chart(self, filename):
+        answer = messagebox.askyesno("View Chart", "Do you want to view the nutrition chart?")
+        if answer:
             try:
-                self.to_respond = generate_meal_plan(self.message)
-                if self.to_respond:
-                    self.current_time = time.strftime("%H:%M")
-                    self.current_time_label = ct.CTkLabel(self.label_frame, text=self.current_time, font=("consolas", 12))
-                    self.current_time_label.pack(side=TOP, anchor="nw", pady=0, padx=55)
-                    
-                    self.bot_frame = ct.CTkFrame(self.label_frame, fg_color="black")
-                    self.bot_frame.pack(side=TOP, anchor="nw", padx=10)
-                    
-                    self.bot_response_label = ct.CTkLabel(
-                        self.bot_frame,
-                        text=self.to_respond,
-                        font=("Poppins", 14),
-                        fg_color="#444",
-                        corner_radius=6,
-                        wraplength=300
-                    )
-                    self.bot_response_label.pack(side=RIGHT, pady=5, padx=5)
+                img = mpimg.imread(filename)
+                plt.imshow(img)
+                plt.axis('off')
+                plt.title("Meal Plan Nutrition Chart")
+                plt.show()
+            except Exception as e:
+                messagebox.showerror("Error", f"Unable to display chart.\n{e}")
 
-                    self.bot_image_label = ct.CTkLabel(self.bot_frame, text="", image=bot_image, fg_color="black")
-                    self.bot_image_label.image = bot_image  # Mencegah gambar hilang
-                    self.bot_image_label.pack(side=LEFT, pady=5, padx=5)
-
-                    self.root.update_idletasks()
-                    self.canvas.yview_moveto(1.0)
-
-
-                if self.msgInput.get() :
-                    print("Working")
-
-                else:
-                    pass
-            except Exception:
-                pass
-
-    def configure_scroll_region(self, e):
-        self.canvas.configure(scrollregion=self.canvas.bbox('all'))
-        
-    def resize_frame(self, e):
-        self.canvas.itemconfigure(self.scrollable_window, width=e.width-30)
-        
-# AvatorPage(root)
-ChatApp(root)
-
-cProfile.run("root.mainloop()")
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = ChatApp(root)
+    root.mainloop()

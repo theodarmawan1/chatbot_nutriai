@@ -1,12 +1,11 @@
 import numpy as np
-import time
-import re
 import random
+import re
 import matplotlib.pyplot as plt
 import pandas as pd
 from datetime import datetime, timedelta
 
-# ------------------- Database of Recipes -------------------
+# ------------------- Recipe Database -------------------
 # Format: {recipe_name: {"calories": int, "protein": int, "carbs": int, "fat": int, "recipe": str, "ingredients": str}}
 recipes_db = {
     # Breakfast recipes
@@ -172,7 +171,7 @@ Ready to begin? Type 'START' to continue.
 
 # User information dictionary
 user_info = {
-    "state": "initial",  # Possible states: initial, asking_calories, asking_protein, asking_carbs, asking_fat, asking_restrictions, planning, complete
+    "state": "initial",  # Possible states: initial, asking_calories, asking_protein, asking_carbs, asking_fat, asking_restrictions, asking_allergies, planning, complete
     "calories": 0,
     "protein_percent": 0,
     "carbs_percent": 0,
@@ -316,28 +315,36 @@ def create_nutrition_charts(nutrition_data):
         ax2.legend()
         
         plt.tight_layout()
-        plt.savefig('meal_plan_nutrition.png')
+        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+        filename = f"meal_plan_nutrition_{timestamp}.png"
+        plt.savefig(filename)
         plt.close()
-        return True
+        return filename
     except Exception as e:
         print(f"Error creating chart: {e}")
-        return False
+        return None
 
 # Main function to process user input
 def process_input(user_input):
     user_input = user_input.strip().lower()
     
+    # Check for global commands that work in any state
+    if user_input == "reset":
+        user_info.update({"state": "initial", "calories": 0, "protein_percent": 0, "carbs_percent": 0, "fat_percent": 0, "restrictions": [], "allergies": []})
+        return "🔄 Meal planner reset!\n" + welcome_message
+    
+    if user_input == "exit":
+        return "👋 Thanks for using SmartMealPlanner. Stay healthy and happy!"
+    
+    if user_input == "help":
+        return help_message
+    
     # Initial state: waiting for START command
     if user_info["state"] == "initial":
         if user_input == "start":
             user_info["state"] = "asking_calories"
-            return "Great! Let's start by setting your daily calorie goal.\n\nHow many calories would you like to consume per day? (e.g., 1800, 2000, 2500)"
-        elif user_input == "help":
-            return help_message
-        elif user_input == "exit":
-            return "Thank you for using SmartMealPlanner. Goodbye!"
-        else:
-            return "I didn't understand that. Please type 'START' to begin, 'HELP' for more information, or 'EXIT' to quit."
+            return "⚡ Let's get started!\nHow many calories would you like to consume daily? (e.g., 2000)"
+        return "❓ Type **START** to begin your meal planning journey."
     
     # Collecting calorie information
     elif user_info["state"] == "asking_calories":
@@ -347,17 +354,9 @@ def process_input(user_input):
                 return "Please enter a reasonable daily calorie goal between 1200 and 4000 calories."
             user_info["calories"] = calories
             user_info["state"] = "asking_protein"
-            return f"Great! Your daily calorie goal is set to {calories} calories.\n\nNow, what percentage of your calories would you like to come from protein? (e.g., 30)"
+            return f"💪 Great! Now, what percentage of your calories should come from **protein**? (e.g., 30)"
         except ValueError:
-            if user_input == "reset":
-                user_info["state"] = "initial"
-                return welcome_message
-            elif user_input == "help":
-                return help_message
-            elif user_input == "exit":
-                return "Thank you for using SmartMealPlanner. Goodbye!"
-            else:
-                return "Please enter a valid number for your daily calorie goal (e.g., 2000)."
+            return "🚫 Please enter a valid number for calories (e.g., 2000)."
     
     # Collecting protein percentage
     elif user_info["state"] == "asking_protein":
@@ -367,17 +366,9 @@ def process_input(user_input):
                 return "Please enter a reasonable protein percentage between 10% and 50%."
             user_info["protein_percent"] = protein_percent
             user_info["state"] = "asking_carbs"
-            return f"Great! {protein_percent}% of your calories will come from protein.\n\nWhat percentage of your calories would you like to come from carbohydrates? (e.g., 40)"
+            return f"🍞 Got it. What percentage should come from **carbohydrates**? (e.g., 40)"
         except ValueError:
-            if user_input == "reset":
-                user_info["state"] = "initial"
-                return welcome_message
-            elif user_input == "help":
-                return help_message
-            elif user_input == "exit":
-                return "Thank you for using SmartMealPlanner. Goodbye!"
-            else:
-                return "Please enter a valid number for your protein percentage (e.g., 30)."
+            return "🚫 Please enter a number like 30."
     
     # Collecting carbs percentage
     elif user_info["state"] == "asking_carbs":
@@ -385,51 +376,30 @@ def process_input(user_input):
             carbs_percent = int(user_input)
             if carbs_percent < 10 or carbs_percent > 60:
                 return "Please enter a reasonable carbohydrate percentage between 10% and 60%."
-            user_info["carbs_percent"] = carbs_percent
             
-            # Check if protein + carbs is already > 100%
             if user_info["protein_percent"] + carbs_percent > 100:
-                return f"The combined percentage of protein and carbs ({user_info['protein_percent'] + carbs_percent}%) exceeds 100%. Please enter a lower carbohydrate percentage."
+                return "⚠️ Total macros exceed 100%. Try a lower carb %."
             
+            user_info["carbs_percent"] = carbs_percent
             user_info["state"] = "asking_fat"
-            return f"Great! {carbs_percent}% of your calories will come from carbohydrates.\n\nWhat percentage of your calories would you like to come from fat? Note: Protein + Carbs + Fat should total 100%. Based on your inputs, this should be {100 - user_info['protein_percent'] - carbs_percent}%."
+            remaining = 100 - user_info["protein_percent"] - carbs_percent
+            return f"🥑 And the remaining {remaining}% is for **fat**. Please enter: {remaining}"
         except ValueError:
-            if user_input == "reset":
-                user_info["state"] = "initial"
-                return welcome_message
-            elif user_input == "help":
-                return help_message
-            elif user_input == "exit":
-                return "Thank you for using SmartMealPlanner. Goodbye!"
-            else:
-                return "Please enter a valid number for your carbohydrate percentage (e.g., 40)."
+            return "🚫 Please enter a valid percentage."
     
     # Collecting fat percentage
     elif user_info["state"] == "asking_fat":
         try:
-            fat_percent = int(user_input)
-            total_percent = user_info["protein_percent"] + user_info["carbs_percent"] + fat_percent
-            
-            if fat_percent < 10 or fat_percent > 60:
-                return "Please enter a reasonable fat percentage between 10% and 60%."
-            
-            if total_percent != 100:
-                return f"The total of protein, carbs, and fat percentages ({total_percent}%) must equal 100%. Please enter {100 - user_info['protein_percent'] - user_info['carbs_percent']}% for fat."
-            
-            user_info["fat_percent"] = fat_percent
+            val = int(user_input)
+            total = user_info["protein_percent"] + user_info["carbs_percent"] + val
+            if total != 100:
+                return f"⚠️ Your total macros must equal 100%. You entered {total}%."
+            user_info["fat_percent"] = val
             user_info["state"] = "asking_restrictions"
             return "Great! Now, do you have any dietary restrictions? (e.g., vegetarian, vegan, gluten-free, none)"
         except ValueError:
-            if user_input == "reset":
-                user_info["state"] = "initial"
-                return welcome_message
-            elif user_input == "help":
-                return help_message
-            elif user_input == "exit":
-                return "Thank you for using SmartMealPlanner. Goodbye!"
-            else:
-                return "Please enter a valid number for your fat percentage."
-    
+            return "🚫 Please enter a valid fat percentage."
+            
     # Collecting dietary restrictions
     elif user_info["state"] == "asking_restrictions":
         if user_input == "none":
@@ -448,17 +418,17 @@ def process_input(user_input):
             user_info["allergies"] = [a.strip() for a in user_input.split(",")]
         
         user_info["state"] = "planning"
-        return "Thank you for providing all the necessary information! I'm now generating your personalized 7-day meal plan. This might take a moment..."
+        return "⏳ Awesome! I'm preparing your meal plan now... 🍳(type : 'okay')"
     
     # Generate meal plan
     elif user_info["state"] == "planning":
         meal_plan, daily_targets = create_meal_plan(user_info)
         plan_text, nutrition_data = format_meal_plan(meal_plan, daily_targets)
-        chart_created = create_nutrition_charts(nutrition_data)
+        chart_filename = create_nutrition_charts(nutrition_data)
         
         user_info["state"] = "complete"
         
-        response = "✅ Your 7-day meal plan is ready! ✅\n\n"
+        response = "✅ Your personalized 7-day meal plan is ready! 🎉\n\n"
         response += "I've created a personalized meal plan based on your requirements:\n"
         response += f"- Daily Calorie Goal: {user_info['calories']} calories\n"
         response += f"- Macros: {user_info['protein_percent']}% protein, {user_info['carbs_percent']}% carbs, {user_info['fat_percent']}% fat\n"
@@ -470,56 +440,24 @@ def process_input(user_input):
         
         response += "\n" + plan_text
         
-        if chart_created:
-            response += "\nI've also created nutrition charts to help you visualize your meal plan. Check out the 'meal_plan_nutrition.png' file.\n\n"
-        
-        response += "Would you like to start over with new information? Type 'RESET' to begin again, or 'EXIT' to quit."
-        
-        return response
+        if chart_filename:
+            response += f"\nI've also created nutrition charts to help you visualize your meal plan. Chart saved as '{chart_filename}'.\n\n"
+            
+        response += "\n🔁 Type 'RESET' to create another plan or 'EXIT' to quit."
+        return response, chart_filename
     
     # Plan is complete, waiting for reset or exit
     elif user_info["state"] == "complete":
-        if user_input == "reset":
-            user_info["state"] = "initial"
-            user_info["calories"] = 0
-            user_info["protein_percent"] = 0
-            user_info["carbs_percent"] = 0
-            user_info["fat_percent"] = 0
-            user_info["restrictions"] = []
-            user_info["allergies"] = []
-            return welcome_message
-        elif user_input == "exit":
-            return "Thank you for using SmartMealPlanner. Goodbye!"
-        else:
-            return "Your meal plan is complete. Type 'RESET' to start over with new information, or 'EXIT' to quit."
+        return "🔁 To create a new plan, type 'RESET'. To exit, type 'EXIT'."
     
     # Default response for unknown states
     else:
         user_info["state"] = "initial"
-        return "Something went wrong. Let's start over.\n\n" + welcome_message
+        return "⚠️ Something went wrong. Type 'RESET' to try again."
 
 # Function to handle user input - this is the main function called by the UI
 def generate_meal_plan(user_input):
-    # Check for global commands that work in any state
-    user_input_lower = user_input.lower().strip()
-    
-    if user_input_lower == "exit":
-        return "Thank you for using SmartMealPlanner. Goodbye!"
-    elif user_input_lower == "help":
-        return help_message
-    elif user_input_lower == "reset":
-        # Reset user info
-        user_info["state"] = "initial"
-        user_info["calories"] = 0
-        user_info["protein_percent"] = 0
-        user_info["carbs_percent"] = 0
-        user_info["fat_percent"] = 0
-        user_info["restrictions"] = []
-        user_info["allergies"] = []
-        return welcome_message
-    else:
-        # Process based on current state
-        return process_input(user_input)
+    return process_input(user_input)
 
 # Return welcome message on first run
 if __name__ == "__main__":
