@@ -9,7 +9,7 @@ import json
 import os
 
 def get_recipe_from_api(requirements):
-    api_key = os.environ.get("OPENAI_API_KEY", "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")  # Better practice: use environment variable
+    api_key = os.environ.get("OPENAI_API_KEY", "")
     conn = http.client.HTTPSConnection("api.openai.com")
     headers = {
         'Content-Type': 'application/json',
