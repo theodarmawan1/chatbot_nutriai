@@ -34,10 +34,17 @@ class ChatApp:
         self.menu_bar.add_cascade(label="History", menu=self.history_menu)
         self.root.config(menu=self.menu_bar)
 
-        self.counter = 1
+        self.counter = self.get_initial_counter()
         self.chat_id = self.get_new_chat_id()
         self.chat_history = []
         self.display_bot_message(welcome_message)
+    
+    def get_initial_counter(self):
+        if not os.path.exists("history"):
+            os.makedirs("history")
+            return 1
+        count = sum(1 for fname in os.listdir("history") if fname.endswith(".json"))
+        return count + 1
 
     def get_new_chat_id(self):
         chat_id = f"chat-{self.counter}-{time.strftime('%Y%m%d%H%M%S')}"

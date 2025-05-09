@@ -4,138 +4,118 @@ import re
 import matplotlib.pyplot as plt
 import pandas as pd
 from datetime import datetime, timedelta
+import http.client
+import json
+import os
 
-# ------------------- Recipe Database -------------------
-# Format: {recipe_name: {"calories": int, "protein": int, "carbs": int, "fat": int, "recipe": str, "ingredients": str}}
-recipes_db = {
-    # Breakfast recipes
-    "Overnight Oats": {
-        "calories": 350, 
-        "protein": 15, 
-        "carbs": 55, 
-        "fat": 8,
-        "ingredients": "1/2 cup rolled oats, 1/2 cup milk, 1/2 cup Greek yogurt, 1 tbsp honey, 1/2 banana sliced, 1 tbsp chia seeds",
-        "recipe": "Mix oats, milk, yogurt, and chia seeds in a jar. Refrigerate overnight. Top with banana and honey before serving."
-    },
-    "Vegetable Omelette": {
-        "calories": 320, 
-        "protein": 20, 
-        "carbs": 5, 
-        "fat": 24,
-        "ingredients": "3 eggs, 1/4 cup chopped bell peppers, 1/4 cup chopped onions, 1/4 cup chopped tomatoes, 2 tbsp olive oil, salt and pepper to taste",
-        "recipe": "Beat eggs in a bowl. Heat oil in a pan, sauté vegetables until soft. Pour eggs over vegetables and cook until set. Fold and serve."
-    },
-    "Avocado Toast": {
-        "calories": 380, 
-        "protein": 10, 
-        "carbs": 35, 
-        "fat": 22,
-        "ingredients": "2 slices whole grain bread, 1 ripe avocado, 2 eggs, salt, pepper, red pepper flakes",
-        "recipe": "Toast bread. Mash avocado and spread on toast. Top with poached or fried eggs. Season with salt, pepper, and red pepper flakes."
-    },
-    "Protein Smoothie": {
-        "calories": 300, 
-        "protein": 25, 
-        "carbs": 30, 
-        "fat": 8,
-        "ingredients": "1 scoop protein powder, 1 banana, 1 cup almond milk, 1 tbsp peanut butter, 1/2 cup frozen berries",
-        "recipe": "Blend all ingredients until smooth. Add ice if desired."
-    },
-    "Greek Yogurt Parfait": {
-        "calories": 290, 
-        "protein": 18, 
-        "carbs": 40, 
-        "fat": 6,
-        "ingredients": "1 cup Greek yogurt, 1/4 cup granola, 1/2 cup mixed berries, 1 tbsp honey",
-        "recipe": "Layer yogurt, granola, and berries in a glass. Drizzle with honey."
-    },
-
-    # Lunch recipes
-    "Chicken Salad": {
-        "calories": 450, 
-        "protein": 35, 
-        "carbs": 15, 
-        "fat": 28,
-        "ingredients": "4 oz grilled chicken breast, 2 cups mixed greens, 1/4 cup cherry tomatoes, 1/4 cup cucumber, 2 tbsp olive oil, 1 tbsp balsamic vinegar",
-        "recipe": "Grill chicken and slice. Toss with greens and vegetables. Dress with olive oil and vinegar."
-    },
-    "Quinoa Bowl": {
-        "calories": 420, 
-        "protein": 18, 
-        "carbs": 60, 
-        "fat": 12,
-        "ingredients": "1 cup cooked quinoa, 1/2 cup black beans, 1/4 cup corn, 1/4 avocado, 1/4 cup salsa, lime juice",
-        "recipe": "Mix quinoa, beans, and corn. Top with avocado and salsa. Squeeze lime juice over the top."
-    },
-    "Tuna Wrap": {
-        "calories": 380, 
-        "protein": 25, 
-        "carbs": 40, 
-        "fat": 14,
-        "ingredients": "1 can tuna, 1 tbsp light mayo, 1 whole wheat wrap, 1/4 cup lettuce, 1/4 cup diced tomatoes",
-        "recipe": "Mix tuna with mayo. Spread on wrap. Add lettuce and tomatoes. Roll up and serve."
-    },
-    "Lentil Soup": {
-        "calories": 320, 
-        "protein": 18, 
-        "carbs": 45, 
-        "fat": 8,
-        "ingredients": "1 cup cooked lentils, 1/2 cup carrots, 1/2 cup celery, 1/2 cup onion, 2 cups vegetable broth, 1 tbsp olive oil, herbs and spices",
-        "recipe": "Sauté vegetables in oil. Add lentils and broth. Simmer for 20 minutes. Season with herbs and spices."
-    },
-    "Mediterranean Pasta Salad": {
-        "calories": 410, 
-        "protein": 15, 
-        "carbs": 55, 
-        "fat": 16,
-        "ingredients": "1 cup whole wheat pasta, 1/4 cup cherry tomatoes, 1/4 cup cucumber, 2 tbsp feta cheese, 2 tbsp olive oil, 1 tbsp red wine vinegar, herbs",
-        "recipe": "Cook pasta and cool. Toss with vegetables, cheese, oil, vinegar, and herbs."
-    },
-
-    # Dinner recipes
-    "Baked Salmon": {
-        "calories": 480, 
-        "protein": 40, 
-        "carbs": 25, 
-        "fat": 22,
-        "ingredients": "6 oz salmon fillet, 1 cup roasted broccoli, 1/2 cup brown rice, 1 tbsp olive oil, lemon, herbs",
-        "recipe": "Season salmon with herbs. Bake at 400°F for 15 minutes. Serve with roasted broccoli and brown rice."
-    },
-    "Stir-Fry Tofu": {
-        "calories": 390, 
-        "protein": 22, 
-        "carbs": 45, 
-        "fat": 16,
-        "ingredients": "4 oz tofu, 1 cup mixed vegetables, 1/2 cup brown rice, 1 tbsp soy sauce, 1 tbsp sesame oil, ginger, garlic",
-        "recipe": "Press and cube tofu. Stir-fry tofu and vegetables in sesame oil. Add soy sauce, ginger, and garlic. Serve over rice."
-    },
-    "Turkey Chili": {
-        "calories": 420, 
-        "protein": 35, 
-        "carbs": 40, 
-        "fat": 12,
-        "ingredients": "4 oz ground turkey, 1/2 cup kidney beans, 1/2 cup diced tomatoes, 1/4 cup onion, 1/4 cup bell pepper, chili powder, cumin",
-        "recipe": "Brown turkey. Add vegetables and spices. Simmer for 20 minutes. Add beans and tomatoes. Cook for 10 more minutes."
-    },
-    "Vegetable Curry": {
-        "calories": 360, 
-        "protein": 12, 
-        "carbs": 50, 
-        "fat": 14,
-        "ingredients": "1 cup mixed vegetables, 1/2 cup chickpeas, 1/2 cup coconut milk, 1/2 cup brown rice, curry powder, turmeric, garlic, ginger",
-        "recipe": "Sauté garlic and ginger. Add vegetables and spices. Pour in coconut milk. Simmer for 15 minutes. Add chickpeas. Serve over rice."
-    },
-    "Grilled Chicken with Sweet Potato": {
-        "calories": 450, 
-        "protein": 38, 
-        "carbs": 35, 
-        "fat": 16,
-        "ingredients": "5 oz chicken breast, 1 medium sweet potato, 1 cup steamed green beans, 1 tbsp olive oil, herbs and spices",
-        "recipe": "Season chicken with herbs and grill. Bake sweet potato at 400°F for 45 minutes. Steam green beans. Drizzle with olive oil."
+def get_recipe_from_api(requirements):
+    api_key = os.environ.get("OPENAI_API_KEY", "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")  # Better practice: use environment variable
+    conn = http.client.HTTPSConnection("api.openai.com")
+    headers = {
+        'Content-Type': 'application/json',
+        'Authorization': f'Bearer {api_key}'
     }
-}
+    
+    meal_type = requirements.get("meal_type", "any meal")
+    calories = requirements.get("calories", "")
+    protein = requirements.get("protein", "")
+    carbs = requirements.get("carbs", "")
+    fat = requirements.get("fat", "")
+    restrictions = ", ".join(requirements.get("restrictions", []))
+    allergies = ", ".join(requirements.get("allergies", []))
+    
+    prompt = f"""Generate a single healthy {meal_type} recipe with the following criteria:
+    - Target calories: approximately {calories} calories
+    - Target macros: approximately {protein}g protein, {carbs}g carbs, {fat}g fat
+    """
+    
+    if restrictions:
+        prompt += f"- Dietary restrictions: {restrictions}\n"
+    if allergies:
+        prompt += f"- Must avoid (allergies): {allergies}\n"
+    
+    prompt += """Format your response as a JSON object with the following structure:
+    {
+      "name": "Recipe Name",
+      "calories": 350,
+      "protein": 20,
+      "carbs": 40,
+      "fat": 10,
+      "ingredients": "List of ingredients with quantities",
+      "recipe": "Step by step cooking instructions"
+    }
+    
+    The response must be valid JSON. Only include the JSON object in your response, nothing else.
+    """
+    
+    body = {
+        "model": "gpt-3.5-turbo",
+        "messages": [
+            {"role": "system", "content": "You are a professional nutritionist and chef specializing in healthy meal planning."},
+            {"role": "user", "content": prompt}
+        ],
+        "temperature": 0.7
+    }
+    
+    try:
+        conn.request("POST", "/v1/chat/completions", body=json.dumps(body), headers=headers)
+        response = conn.getresponse()
+        
+        data = response.read().decode()
+        result = json.loads(data)
+        
+        recipe_json_str = result["choices"][0]["message"]["content"].strip()
+        
+        # Remove any markdown code block indicators if present
+        recipe_json_str = re.sub(r'^```json\s*|\s*```$', '', recipe_json_str, flags=re.MULTILINE)
+        
+        recipe = json.loads(recipe_json_str)
+        return recipe
+        
+    except Exception as e:
+        print(f"Error in API request: {e}")
+        return {
+            "name": f"Backup {meal_type.capitalize()}",
+            "calories": requirements.get("calories", 350),
+            "protein": requirements.get("protein", 20),
+            "carbs": requirements.get("carbs", 40),
+            "fat": requirements.get("fat", 10),
+            "ingredients": "Please check API connection. Using backup recipe.",
+            "recipe": "API connection error. This is a placeholder recipe."
+        }
 
-# Welcome message and instructions
+recipes_cache = {}
+
+def get_or_generate_recipe(meal_type, targets, user_info):
+    restrictions_key = "-".join(sorted(user_info.get("restrictions", [])))
+    allergies_key = "-".join(sorted(user_info.get("allergies", [])))
+    cache_key = f"{meal_type}-{targets['calories']}-{restrictions_key}-{allergies_key}"
+    
+    if cache_key in recipes_cache:
+        recipes = recipes_cache[cache_key]
+        if recipes:
+            recipe = recipes.pop(0)
+            recipes.append(recipe)
+            return recipe
+    
+    requirements = {
+        "meal_type": meal_type,
+        "calories": targets["calories"],
+        "protein": targets["protein"],
+        "carbs": targets["carbs"],
+        "fat": targets["fat"],
+        "restrictions": user_info.get("restrictions", []),
+        "allergies": user_info.get("allergies", [])
+    }
+    
+    recipe = get_recipe_from_api(requirements)
+    
+    if cache_key not in recipes_cache:
+        recipes_cache[cache_key] = []
+    recipes_cache[cache_key].append(recipe)
+    
+    return recipe
+
 welcome_message = """
 🍽️ Welcome to SmartMealPlanner! 🍽️
 
@@ -165,13 +145,13 @@ During the meal planning process, I'll ask you questions about your:
 - Food allergies (e.g., nuts, dairy)
 
 After collecting this information, I'll generate a personalized 7-day meal plan with recipes and nutritional information.
+Each recipe is custom-generated based on your requirements using AI.
 
 Ready to begin? Type 'START' to continue.
 """
 
-# User information dictionary
 user_info = {
-    "state": "initial",  # Possible states: initial, asking_calories, asking_protein, asking_carbs, asking_fat, asking_restrictions, asking_allergies, planning, complete
+    "state": "initial",
     "calories": 0,
     "protein_percent": 0,
     "carbs_percent": 0,
@@ -180,27 +160,17 @@ user_info = {
     "allergies": []
 }
 
-# Function to generate meal plan based on user information
 def create_meal_plan(user_info):
     meal_plan = {}
     today = datetime.now()
     
-    # Filter recipes based on user restrictions and allergies
-    # In a real implementation, this would be more sophisticated
-    available_recipes = {
-        "breakfast": ["Overnight Oats", "Vegetable Omelette", "Avocado Toast", "Protein Smoothie", "Greek Yogurt Parfait"],
-        "lunch": ["Chicken Salad", "Quinoa Bowl", "Tuna Wrap", "Lentil Soup", "Mediterranean Pasta Salad"],
-        "dinner": ["Baked Salmon", "Stir-Fry Tofu", "Turkey Chili", "Vegetable Curry", "Grilled Chicken with Sweet Potato"]
-    }
-    
-    # Calculate macro targets
     protein_calories = user_info["calories"] * (user_info["protein_percent"] / 100)
     carbs_calories = user_info["calories"] * (user_info["carbs_percent"] / 100)
     fat_calories = user_info["calories"] * (user_info["fat_percent"] / 100)
     
-    protein_grams = protein_calories / 4  # 4 calories per gram of protein
-    carbs_grams = carbs_calories / 4      # 4 calories per gram of carbs
-    fat_grams = fat_calories / 9          # 9 calories per gram of fat
+    protein_grams = protein_calories / 4
+    carbs_grams = carbs_calories / 4
+    fat_grams = fat_calories / 9
     
     daily_targets = {
         "calories": user_info["calories"],
@@ -209,20 +179,32 @@ def create_meal_plan(user_info):
         "fat": fat_grams
     }
     
-    # Generate 7-day meal plan
+    meal_distribution = {
+        "breakfast": 0.25,
+        "lunch": 0.35,
+        "dinner": 0.40
+    }
+    
     for i in range(7):
         day = (today + timedelta(days=i+1)).strftime("%A, %B %d")
         
-        # Randomly select meals for the day
-        breakfast = random.choice(available_recipes["breakfast"])
-        lunch = random.choice(available_recipes["lunch"])
-        dinner = random.choice(available_recipes["dinner"])
+        meal_targets = {}
+        for meal_type, percentage in meal_distribution.items():
+            meal_targets[meal_type] = {
+                "calories": int(daily_targets["calories"] * percentage),
+                "protein": int(daily_targets["protein"] * percentage),
+                "carbs": int(daily_targets["carbs"] * percentage),
+                "fat": int(daily_targets["fat"] * percentage)
+            }
         
-        # Calculate daily nutrition totals
-        day_calories = recipes_db[breakfast]["calories"] + recipes_db[lunch]["calories"] + recipes_db[dinner]["calories"]
-        day_protein = recipes_db[breakfast]["protein"] + recipes_db[lunch]["protein"] + recipes_db[dinner]["protein"]
-        day_carbs = recipes_db[breakfast]["carbs"] + recipes_db[lunch]["carbs"] + recipes_db[dinner]["carbs"]
-        day_fat = recipes_db[breakfast]["fat"] + recipes_db[lunch]["fat"] + recipes_db[dinner]["fat"]
+        breakfast = get_or_generate_recipe("breakfast", meal_targets["breakfast"], user_info)
+        lunch = get_or_generate_recipe("lunch", meal_targets["lunch"], user_info)
+        dinner = get_or_generate_recipe("dinner", meal_targets["dinner"], user_info)
+        
+        day_calories = breakfast["calories"] + lunch["calories"] + dinner["calories"]
+        day_protein = breakfast["protein"] + lunch["protein"] + dinner["protein"]
+        day_carbs = breakfast["carbs"] + lunch["carbs"] + dinner["carbs"]
+        day_fat = breakfast["fat"] + lunch["fat"] + dinner["fat"]
         
         meal_plan[day] = {
             "breakfast": breakfast,
@@ -238,13 +220,11 @@ def create_meal_plan(user_info):
     
     return meal_plan, daily_targets
 
-# Function to format meal plan as text
 def format_meal_plan(meal_plan, daily_targets):
     plan_text = "📅 YOUR 7-DAY MEAL PLAN 📅\n\n"
     plan_text += f"Daily Targets: {daily_targets['calories']} calories, {daily_targets['protein']:.0f}g protein, "
     plan_text += f"{daily_targets['carbs']:.0f}g carbs, {daily_targets['fat']:.0f}g fat\n\n"
     
-    # Store data for charts
     days = []
     calories = []
     proteins = []
@@ -252,29 +232,28 @@ def format_meal_plan(meal_plan, daily_targets):
     fats = []
     
     for day, meals in meal_plan.items():
-        days.append(day.split(',')[0])  # Just the day name for the chart
+        days.append(day.split(',')[0])
         calories.append(meals["totals"]["calories"])
         proteins.append(meals["totals"]["protein"])
         carbs.append(meals["totals"]["carbs"])
         fats.append(meals["totals"]["fat"])
         
         plan_text += f"--- {day} ---\n"
-        plan_text += f"Breakfast: {meals['breakfast']} ({recipes_db[meals['breakfast']]['calories']} cal)\n"
-        plan_text += f"  Ingredients: {recipes_db[meals['breakfast']]['ingredients']}\n"
-        plan_text += f"  Recipe: {recipes_db[meals['breakfast']]['recipe']}\n\n"
+        plan_text += f"Breakfast: {meals['breakfast']['name']} ({meals['breakfast']['calories']} cal)\n"
+        plan_text += f"  Ingredients: {meals['breakfast']['ingredients']}\n"
+        plan_text += f"  Recipe: {meals['breakfast']['recipe']}\n\n"
         
-        plan_text += f"Lunch: {meals['lunch']} ({recipes_db[meals['lunch']]['calories']} cal)\n"
-        plan_text += f"  Ingredients: {recipes_db[meals['lunch']]['ingredients']}\n"
-        plan_text += f"  Recipe: {recipes_db[meals['lunch']]['recipe']}\n\n"
+        plan_text += f"Lunch: {meals['lunch']['name']} ({meals['lunch']['calories']} cal)\n"
+        plan_text += f"  Ingredients: {meals['lunch']['ingredients']}\n"
+        plan_text += f"  Recipe: {meals['lunch']['recipe']}\n\n"
         
-        plan_text += f"Dinner: {meals['dinner']} ({recipes_db[meals['dinner']]['calories']} cal)\n"
-        plan_text += f"  Ingredients: {recipes_db[meals['dinner']]['ingredients']}\n"
-        plan_text += f"  Recipe: {recipes_db[meals['dinner']]['recipe']}\n\n"
+        plan_text += f"Dinner: {meals['dinner']['name']} ({meals['dinner']['calories']} cal)\n"
+        plan_text += f"  Ingredients: {meals['dinner']['ingredients']}\n"
+        plan_text += f"  Recipe: {meals['dinner']['recipe']}\n\n"
         
         plan_text += f"Daily Totals: {meals['totals']['calories']} calories, "
         plan_text += f"{meals['totals']['protein']}g protein, {meals['totals']['carbs']}g carbs, {meals['totals']['fat']}g fat\n\n"
     
-    # Create nutrition data for visualization
     nutrition_data = {
         'Day': days,
         'Calories': calories,
@@ -285,22 +264,18 @@ def format_meal_plan(meal_plan, daily_targets):
     
     return plan_text, nutrition_data
 
-# Function to create nutrition charts
 def create_nutrition_charts(nutrition_data):
     try:
         df = pd.DataFrame(nutrition_data)
         
-        # Create figure with two subplots
         fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 12))
         
-        # Plot 1: Daily calorie distribution
         ax1.bar(df['Day'], df['Calories'], color='skyblue')
         ax1.set_title('Daily Calorie Distribution')
         ax1.set_ylabel('Calories')
         ax1.axhline(y=df['Calories'].mean(), color='r', linestyle='--', label=f'Average: {df["Calories"].mean():.0f} cal')
         ax1.legend()
         
-        # Plot 2: Macronutrient breakdown
         width = 0.25
         x = np.arange(len(df['Day']))
         
@@ -324,11 +299,9 @@ def create_nutrition_charts(nutrition_data):
         print(f"Error creating chart: {e}")
         return None
 
-# Main function to process user input
 def process_input(user_input):
     user_input = user_input.strip().lower()
     
-    # Check for global commands that work in any state
     if user_input == "reset":
         user_info.update({"state": "initial", "calories": 0, "protein_percent": 0, "carbs_percent": 0, "fat_percent": 0, "restrictions": [], "allergies": []})
         return "🔄 Meal planner reset!\n" + welcome_message
@@ -339,14 +312,12 @@ def process_input(user_input):
     if user_input == "help":
         return help_message
     
-    # Initial state: waiting for START command
     if user_info["state"] == "initial":
         if user_input == "start":
             user_info["state"] = "asking_calories"
             return "⚡ Let's get started!\nHow many calories would you like to consume daily? (e.g., 2000)"
         return "❓ Type **START** to begin your meal planning journey."
     
-    # Collecting calorie information
     elif user_info["state"] == "asking_calories":
         try:
             calories = int(user_input)
@@ -358,7 +329,6 @@ def process_input(user_input):
         except ValueError:
             return "🚫 Please enter a valid number for calories (e.g., 2000)."
     
-    # Collecting protein percentage
     elif user_info["state"] == "asking_protein":
         try:
             protein_percent = int(user_input)
@@ -370,7 +340,6 @@ def process_input(user_input):
         except ValueError:
             return "🚫 Please enter a number like 30."
     
-    # Collecting carbs percentage
     elif user_info["state"] == "asking_carbs":
         try:
             carbs_percent = int(user_input)
@@ -387,7 +356,6 @@ def process_input(user_input):
         except ValueError:
             return "🚫 Please enter a valid percentage."
     
-    # Collecting fat percentage
     elif user_info["state"] == "asking_fat":
         try:
             val = int(user_input)
@@ -400,7 +368,6 @@ def process_input(user_input):
         except ValueError:
             return "🚫 Please enter a valid fat percentage."
             
-    # Collecting dietary restrictions
     elif user_info["state"] == "asking_restrictions":
         if user_input == "none":
             user_info["restrictions"] = []
@@ -410,7 +377,6 @@ def process_input(user_input):
         user_info["state"] = "asking_allergies"
         return "Got it! Do you have any food allergies? (e.g., nuts, dairy, eggs, none)"
     
-    # Collecting allergies
     elif user_info["state"] == "asking_allergies":
         if user_input == "none":
             user_info["allergies"] = []
@@ -418,10 +384,10 @@ def process_input(user_input):
             user_info["allergies"] = [a.strip() for a in user_input.split(",")]
         
         user_info["state"] = "planning"
-        return "⏳ Awesome! I'm preparing your meal plan now... 🍳(type : 'okay')"
+        return "⏳ Awesome! I'm preparing your meal plan now using AI-generated recipes... This may take a moment, as I'm generating personalized recipes for you. 🍳(type: 'okay')"
     
-    # Generate meal plan
     elif user_info["state"] == "planning":
+        print("Generating meal plan with API...")
         meal_plan, daily_targets = create_meal_plan(user_info)
         plan_text, nutrition_data = format_meal_plan(meal_plan, daily_targets)
         chart_filename = create_nutrition_charts(nutrition_data)
@@ -446,19 +412,15 @@ def process_input(user_input):
         response += "\n🔁 Type 'RESET' to create another plan or 'EXIT' to quit."
         return response, chart_filename
     
-    # Plan is complete, waiting for reset or exit
     elif user_info["state"] == "complete":
         return "🔁 To create a new plan, type 'RESET'. To exit, type 'EXIT'."
     
-    # Default response for unknown states
     else:
         user_info["state"] = "initial"
         return "⚠️ Something went wrong. Type 'RESET' to try again."
 
-# Function to handle user input - this is the main function called by the UI
 def generate_meal_plan(user_input):
     return process_input(user_input)
-
-# Return welcome message on first run
+    
 if __name__ == "__main__":
     print(welcome_message)
